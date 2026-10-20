@@ -418,3 +418,27 @@ export const skillStates = pgTable(
   },
   (t) => [primaryKey({ columns: [t.userId, t.skillId] }), index("skill_states_due").on(t.userId, t.due), ownRowsOnly()],
 );
+
+// Questions asked about an answer's feedback ("why estaba and not estuve?"), with the
+// tutor's reply. At most three per attempt — the position column enforces it.
+export const attemptFollowUps = pgTable(
+  "attempt_follow_ups",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    attemptId: uuid("attempt_id").notNull(),
+    userId: uuid("user_id").notNull(),
+    position: smallint("position").notNull(),
+    question: text("question").notNull(),
+    answer: text("answer").notNull(),
+    model: text("model").notNull(),
+    inputTokens: integer("input_tokens"),
+    outputTokens: integer("output_tokens"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    unique("attempt_follow_ups_position").on(t.attemptId, t.position),
+    check("at_most_three_follow_ups", sql`${t.position} between 1 and 3`),
+    foreignKey({ name: "attempt_follow_ups_attempt_fk", columns: [t.attemptId, t.userId], foreignColumns: [attempts.id, attempts.userId] }).onDelete("cascade"),
+    ownRowsOnly(),
+  ],
+);

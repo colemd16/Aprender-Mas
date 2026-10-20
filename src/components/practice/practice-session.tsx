@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useRef, useState, useTransition } from "react";
+import { useCallback, useLayoutEffect, useRef, useState, useTransition } from "react";
 import { finishSession, submitAnswer, type AnswerFeedback, type SessionSummary } from "@/app/practice/actions";
 import type { PracticeItem } from "@/data/practice";
 import { Button, ButtonLink } from "@/components/ui/button";
@@ -10,6 +10,8 @@ import { Dot, Pill } from "@/components/ui/pill";
 import { ProgressRing } from "@/components/ui/progress-ring";
 import { Spinner } from "@/components/ui/spinner";
 import { Wordmark } from "@/components/ui/wordmark";
+import { Explanation } from "./explanation";
+import { FollowUps } from "./follow-ups";
 import { Morph, morphDuration } from "./morph";
 import { SessionSummaryView } from "./session-summary";
 import { useSpeech } from "./use-speech";
@@ -40,7 +42,15 @@ export function PracticeSession({ sessionId, kind, stepId, stepTitle, levelId, i
   const [stepDone, setStepDone] = useState<Feedback["stepCompleted"]>(null);
   const [, startTransition] = useTransition();
   const shownAt = useRef(0);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // The answer box grows with what's typed (or spoken), and shrinks back for the next question.
+  useLayoutEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [answer, phase.name]);
 
   const item = queue[index];
   const isLast = index >= queue.length - 1;
@@ -154,7 +164,7 @@ export function PracticeSession({ sessionId, kind, stepId, stepTitle, levelId, i
                 </div>
               ) : (
                 <form
-                  className="flex flex-wrap items-center gap-3 sm:flex-nowrap"
+                  className="flex flex-wrap items-end gap-3 sm:flex-nowrap"
                   onSubmit={(e) => {
                     e.preventDefault();
                     submit();
@@ -163,9 +173,10 @@ export function PracticeSession({ sessionId, kind, stepId, stepTitle, levelId, i
                   <label htmlFor="answer" className="sr-only">
                     Your answer in Spanish
                   </label>
-                  <input
+                  <textarea
                     id="answer"
                     ref={inputRef}
+                    rows={1}
                     lang="es"
                     autoFocus
                     autoComplete="off"
@@ -173,12 +184,20 @@ export function PracticeSession({ sessionId, kind, stepId, stepTitle, levelId, i
                     spellCheck={false}
                     value={answer}
                     onChange={(e) => {
-                      setAnswer(e.target.value);
+                      // One line of thought: pasted line breaks become spaces.
+                      setAnswer(e.target.value.replace(/\s*\n\s*/g, " "));
                       if (!shownAt.current) shownAt.current = Date.now();
+                    }}
+                    onKeyDown={(e) => {
+                      // Enter checks the answer; it never adds a new line.
+                      if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+                        e.preventDefault();
+                        submit();
+                      }
                     }}
                     readOnly={phase.name === "grading"}
                     placeholder={speech.listening ? "Escuchando…" : "Escribe en español…"}
-                    className="w-full min-w-0 flex-1 basis-full bg-transparent text-[28px] font-medium tracking-[-0.02em] text-fg outline-none placeholder:text-fg-faint sm:basis-auto sm:text-[36px]"
+                    className="block w-full min-w-0 flex-1 basis-full resize-none overflow-hidden bg-transparent py-1.5 text-[28px] leading-[1.2] font-medium tracking-[-0.02em] text-fg outline-none placeholder:text-fg-faint sm:basis-auto sm:text-[36px]"
                   />
                   {speech.supported && (
                     <button
@@ -317,6 +336,10 @@ function FeedbackDetails({ feedback, solidNotes, isLast, onNext }: { feedback: F
         </div>
       )}
 
+      <div className="animate-pop" style={{ animationDelay: `${base + 250}ms` }}>
+        <FollowUps key={feedback.attemptId} attemptId={feedback.attemptId} />
+      </div>
+
       {solidNotes.length > 0 && (
         <div className="flex animate-pop flex-wrap gap-2" style={{ animationDelay: `${base + 200}ms` }}>
           {solidNotes.map((title) => (
@@ -340,23 +363,6 @@ function FeedbackDetails({ feedback, solidNotes, isLast, onNext }: { feedback: F
         </Button>
       </div>
     </div>
-  );
-}
-
-// Explanations mark Spanish with *asterisks*.
-function Explanation({ text }: { text: string }) {
-  return (
-    <p className="m-0 text-[15px] leading-relaxed text-fg-soft">
-      {text.split(/(\*[^*]+\*)/).map((part, i) =>
-        part.startsWith("*") && part.endsWith("*") ? (
-          <em key={i} lang="es" className="text-fg not-italic">
-            {part.slice(1, -1)}
-          </em>
-        ) : (
-          part
-        ),
-      )}
-    </p>
   );
 }
 

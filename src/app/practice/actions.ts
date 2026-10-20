@@ -49,6 +49,7 @@ export type AnswerInput = {
 export type AnswerFeedback =
   | {
       ok: true;
+      attemptId: string;
       verdict: Verdict;
       answer: string;
       corrected: string;
@@ -108,6 +109,7 @@ export async function submitAnswer(input: AnswerInput): Promise<AnswerFeedback> 
 
   return {
     ok: true,
+    attemptId: outcome.attemptId,
     verdict: result.verdict,
     answer: result.answer,
     corrected: result.corrected,

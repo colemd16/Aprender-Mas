@@ -134,7 +134,9 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-:focus-visible {
+/* Keyboard focus ring for buttons, links and other controls. Text fields are left out
+   on purpose: they show focus with their caret (and their own styles), not a ring. */
+:where(a, button, summary, [tabindex], input[type="checkbox"], input[type="radio"], select):focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 3px;
 }

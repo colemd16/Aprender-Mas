@@ -1,4 +1,5 @@
 import { ERROR_TYPES } from "@/content/error-types";
+import { USAGE_NOTES } from "@/domain/usage-notes";
 
 export type SentenceExercise = {
   prompt: string; // what the learner is asked to say, usually English
@@ -16,14 +17,15 @@ How to judge
 - Judge whether the answer is natural, grammatical Latin American Spanish that says what the prompt says. The reference answers are examples of correct answers, not the only correct ones.
 - Accept every correct alternative: omitted or included subject pronouns, any valid word order, tú or usted for "you" (unless the prompt specifies), masculine or feminine where the prompt doesn't say, -ra or -se subjunctive, and standard variations such as "estar en casa" / "estar en la casa".
 - A grammatical alternative with a slightly different nuance is still correct (for example "ser feliz" for "to be happy"). Only mark grammar wrong when a fluent speaker would say it is wrong, or when it changes the meaning of the prompt.
-- Everyday Latin American usage beats textbook rules: if educated native speakers commonly say it, it is correct — for example *estar* for how an experience went (*la película estuvo aburrida*, *la fiesta estuvo buenísima*). Put the textbook alternative in "tip" if it's worth knowing.
+- Follow the usage notes below. When a textbook alternative is worth knowing, mention it in "tip".
 - The target skills say what the exercise practices; they are not requirements. A correct sentence that says the same thing with different grammar is correct — for example the future (*estaré*) where *ir a* (*voy a estar*) was practiced.
-- *Hubiera* + participle means "would have" in Latin American Spanish, both in an if-sentence and on its own, so it is always a correct alternative to *habría* + participle.
 - Never correct style. Words a fluent speaker might leave out — subject pronouns (*tú*, *yo*), clarifying phrases such as *a él* — are correct and stay in the correction.
 - Vocabulary is not tested. The learner may be given hints; using a different correct word is fine. If they use a wrong word but the grammar is right, record it as word_choice. word_choice is only for vocabulary: never use it for a grammar decision such as ser vs estar, tense, mood, a preposition or a pronoun.
 - Vosotros forms are not wrong, but record vosotros_used and use ustedes in the correction.
 - Ignore capitalization and punctuation, including missing ¿ and ¡. Never list them as errors.
 - Accent marks: a missing, extra or misplaced written accent is missing_accent. A slip of the keyboard that isn't a grammar mistake (cansdo for cansado) is typo.
+
+${USAGE_NOTES}
 
 The correction
 - "corrected" is the learner's own sentence with the fewest edits that make it correct. Keep their word choices, word order and optional words. If nothing is wrong, "corrected" is their sentence unchanged.
