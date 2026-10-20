@@ -1,0 +1,151 @@
+@import "tailwindcss";
+
+/* ─── Noche design tokens ─────────────────────────────────────────────────────
+   Dark-first "night studio": one accent with a soft glow, frosted panels,
+   springy motion. Every screen is built from these — no one-off colors. */
+
+@theme {
+  --font-sans: var(--font-geist-sans), system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+  --color-night: #0a0c10;
+  --color-fg: #edeff4;
+  --color-fg-soft: #c3c8d4;
+  --color-fg-muted: #9097a8;
+  --color-fg-subtle: #7d8497;
+  --color-fg-faint: #5d6476;
+
+  --color-accent: #8ea2ff;
+  --color-accent-bright: #b7c4ff;
+  --color-ok: #5be0a0;
+  --color-warn: #f2b84b;
+  --color-bad: #ff7a7a;
+  --color-bad-soft: #ff9c9c;
+
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-settle: cubic-bezier(0.34, 1.3, 0.64, 1);
+  --ease-out-expo: cubic-bezier(0.22, 1, 0.36, 1);
+
+  --animate-rise: rise 0.65s var(--ease-settle) both;
+  --animate-shake: shake 0.45s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+  --animate-glow-pulse: glow-pulse 2.6s ease-in-out infinite;
+  --animate-spin: spin 0.7s linear infinite;
+  --animate-phrase-cycle: phrase-cycle 12s var(--ease-settle) infinite;
+  --animate-cell-in: cell-in 0.55s var(--ease-spring) both;
+  --animate-morph-delete: morph-delete 0.8s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  --animate-morph-insert: morph-insert 0.75s var(--ease-spring) both;
+  --animate-morph-accent: morph-accent 0.7s var(--ease-spring) both;
+  --animate-pop: pop 0.6s var(--ease-settle) both;
+
+  @keyframes rise {
+    0% { opacity: 0; transform: translateY(16px) scale(0.98); }
+    100% { opacity: 1; transform: none; }
+  }
+  @keyframes shake {
+    10%, 90% { transform: translateX(-1px); }
+    20%, 80% { transform: translateX(3px); }
+    30%, 50%, 70% { transform: translateX(-6px); }
+    40%, 60% { transform: translateX(6px); }
+  }
+  @keyframes glow-pulse {
+    0%, 100% { box-shadow: 0 0 0 4px rgb(142 162 255 / 0.18), 0 0 18px rgb(142 162 255 / 0.5); }
+    50% { box-shadow: 0 0 0 8px rgb(142 162 255 / 0.06), 0 0 28px rgb(142 162 255 / 0.8); }
+  }
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+  /* The correction morph: wrong letters shrink and blur away, right ones glow in. */
+  @keyframes morph-delete {
+    0% { max-width: 1em; opacity: 1; }
+    30% { max-width: 1em; color: var(--color-bad); transform: scale(1.08); }
+    100% { max-width: 0; opacity: 0; transform: scale(0.4); filter: blur(8px); color: var(--color-bad); }
+  }
+  @keyframes morph-insert {
+    0% { max-width: 0; opacity: 0; transform: scale(0.3); text-shadow: 0 0 0 rgb(142 162 255 / 0); }
+    60% { text-shadow: 0 0 22px rgb(142 162 255 / 0.9); }
+    100% { max-width: 1em; opacity: 1; transform: none; text-shadow: 0 0 10px rgb(142 162 255 / 0.35); }
+  }
+  @keyframes morph-accent {
+    0% { transform: rotateX(90deg); opacity: 0; }
+    100% { transform: none; opacity: 1; }
+  }
+  @keyframes pop {
+    0% { opacity: 0; transform: translateY(16px) scale(0.98); }
+    100% { opacity: 1; transform: none; }
+  }
+  @keyframes cell-in {
+    0% { opacity: 0; transform: translateY(10px) scale(0.9); filter: blur(4px); }
+    100% { opacity: 1; transform: none; filter: none; }
+  }
+  /* Four lines sharing a 12s loop: each is visible for ~2.2s of its 3s slot. */
+  @keyframes phrase-cycle {
+    0% { opacity: 0; transform: translateY(24px); filter: blur(8px); }
+    4%, 22% { opacity: 1; transform: none; filter: none; }
+    26%, 100% { opacity: 0; transform: translateY(-24px); filter: blur(8px); }
+  }
+}
+
+/* Frosted panel: the base surface for cards, forms and the answer box. */
+@utility glass {
+  background: rgb(255 255 255 / 0.035);
+  border: 1px solid rgb(255 255 255 / 0.09);
+  box-shadow: 0 30px 80px rgb(0 0 0 / 0.45), inset 0 1px 0 rgb(255 255 255 / 0.05);
+}
+
+/* A quieter surface for secondary cards. */
+@utility glass-subtle {
+  background: rgb(255 255 255 / 0.03);
+  border: 1px solid rgb(255 255 255 / 0.08);
+}
+
+@utility glow-accent {
+  box-shadow: 0 0 30px rgb(142 162 255 / 0.35);
+}
+
+/* Irregular forms glow so they stand out in a table. */
+@utility glow-text {
+  color: var(--color-accent-bright);
+  text-shadow: 0 0 14px rgb(142 162 255 / 0.45);
+}
+
+@utility glow-dot {
+  box-shadow: 0 0 12px currentColor;
+}
+
+/* The soft spotlight behind the main content of a screen. */
+@utility spotlight {
+  background:
+    radial-gradient(900px 420px at 50% 20%, rgb(142 162 255 / 0.1), transparent 70%),
+    var(--color-night);
+}
+
+:root {
+  color-scheme: dark;
+}
+
+html {
+  background: var(--color-night);
+}
+
+body {
+  background: var(--color-night);
+  color: var(--color-fg);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 3px;
+}
+
+/* Respect people who've asked their device for less motion. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
