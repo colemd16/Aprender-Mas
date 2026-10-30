@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useTransition } from "react";
-import { finishSession, submitAnswer, type AnswerFeedback, type SessionSummary } from "@/app/practice/actions";
+import { finishSession, moreQuestions, submitAnswer, type AnswerFeedback, type SessionSummary } from "@/app/practice/actions";
 import type { PracticeItem } from "@/data/practice";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
@@ -35,7 +35,7 @@ export type SessionProps = {
   stepTitle: string;
   levelId: number | null;
   items: PracticeItem[];
-  progress: { solid: number; total: number } | null;
+  progress: { solid: number; total: number; needed: number } | null;
 };
 
 export function PracticeSession({ sessionId, kind, stepId, stepTitle, levelId, items, progress: initialProgress }: SessionProps) {
@@ -47,6 +47,13 @@ export function PracticeSession({ sessionId, kind, stepId, stepTitle, levelId, i
   const [progress, setProgress] = useState(initialProgress);
   const [solidNotes, setSolidNotes] = useState<string[]>([]);
   const [stepDone, setStepDone] = useState<Feedback["stepCompleted"]>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  // A learn session on an unfinished step runs until the step is complete: when its
+  // questions run out, more are planned from where the skills stand. (Checkpoints, and
+  // practicing a step that's already done, are a fixed set.)
+  const [untilComplete] = useState(kind === "learn" && (initialProgress?.needed ?? 0) > 0);
+  const startNeeded = useRef(initialProgress?.needed ?? 0);
+  const batches = useRef(0);
   const [, startTransition] = useTransition();
   const shownAt = useRef(0);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -121,12 +128,26 @@ export function PracticeSession({ sessionId, kind, stepId, stepTitle, levelId, i
 
   function next() {
     setSolidNotes([]);
-    if (isLast) return finish();
+    // The step just became complete: that's the end of the session.
+    if (stepDone || (isLast && !untilComplete)) return finish();
     // Phones only open the keyboard for focus that happens during the tap itself. The answer
     // box stays on the page (hidden) through the feedback, right where it reappears, so it can
     // be focused now — and with nothing to scroll to, the keyboard comes up without the page jumping.
     window.scrollTo({ top: 0 });
     inputRef.current?.focus({ preventScroll: true });
+    if (!isLast) return advance();
+    setLoadingMore(true);
+    startTransition(async () => {
+      const more = await moreQuestions(sessionId).catch(() => []);
+      setLoadingMore(false);
+      if (!more.length) return finish();
+      const batch = ++batches.current;
+      setQueue((q) => [...q, ...more.map((m) => ({ ...m, key: `${batch}:${m.key}` }))]);
+      advance();
+    });
+  }
+
+  function advance() {
     setIndex((i) => i + 1);
     setAnswer("");
     setSpoken(false);
@@ -135,16 +156,33 @@ export function PracticeSession({ sessionId, kind, stepId, stepTitle, levelId, i
   }
 
   function finish() {
+    inputRef.current?.blur();
     setPhase({ name: "finishing" });
     startTransition(async () => setPhase({ name: "done", summary: await finishSession(sessionId) }));
   }
 
   if (phase.name === "done") {
-    return <SessionSummaryView sessionId={sessionId} summary={phase.summary} kind={kind} stepId={stepId} stepTitle={stepTitle} levelId={levelId} />;
+    return (
+      <SessionSummaryView
+        sessionId={sessionId}
+        summary={phase.summary}
+        kind={kind}
+        stepId={stepId}
+        stepTitle={stepTitle}
+        levelId={levelId}
+        completed={stepDone}
+      />
+    );
   }
 
   const answered = index + (phase.name === "feedback" ? 1 : 0);
-  const busy = phase.name === "grading" || phase.name === "finishing";
+  const busy = phase.name === "grading" || phase.name === "finishing" || loadingMore;
+  // Running until the step is complete, progress is answers toward that (a miss can add
+  // some back); otherwise it's how far through the set of questions.
+  const toGo = untilComplete && progress ? progress.needed : null;
+  const done = toGo !== null ? Math.min(1, Math.max(0, (startNeeded.current - toGo) / Math.max(1, startNeeded.current))) : answered / Math.max(1, queue.length);
+  const count = toGo !== null ? (toGo === 0 ? "done" : `${toGo} to go`) : `${Math.min(answered, queue.length)}/${queue.length}`;
+  const nextLabel = stepDone ? "Finish step" : isLast && !untilComplete ? "See results" : "Next";
   const where =
     kind === "checkpoint" ? (
       `Level ${levelId} checkpoint`
@@ -169,10 +207,8 @@ export function PracticeSession({ sessionId, kind, stepId, stepTitle, levelId, i
             <path d="M6 6l12 12M18 6L6 18" />
           </svg>
         </button>
-        <ProgressBar value={answered / Math.max(1, queue.length)} label="Questions answered" className="flex-1" />
-        <span className="min-w-11 flex-none text-right font-mono text-xs text-fg-muted">
-          {Math.min(answered, queue.length)}/{queue.length}
-        </span>
+        <ProgressBar value={done} label={toGo !== null ? "Progress toward finishing the step" : "Questions answered"} className="flex-1" />
+        <span className="min-w-11 flex-none text-right font-mono text-xs text-fg-muted">{count}</span>
       </header>
 
       <header className="hidden flex-wrap items-center justify-between gap-4 px-8 py-5 sm:flex">
@@ -191,14 +227,9 @@ export function PracticeSession({ sessionId, kind, stepId, stepTitle, levelId, i
           )}
         </div>
         <div className="flex items-center gap-3">
-          <span className="font-mono text-xs text-fg-muted">
-            {Math.min(answered, queue.length)} / {queue.length}
-          </span>
+          <span className="font-mono text-xs text-fg-muted">{count}</span>
           <div className="h-1 w-24 overflow-hidden rounded-full bg-white/[0.08]">
-            <div
-              className="h-full rounded-full bg-accent transition-[width] duration-500 ease-out-expo"
-              style={{ width: `${(answered / Math.max(1, queue.length)) * 100}%` }}
-            />
+            <div className="h-full rounded-full bg-accent transition-[width] duration-500 ease-out-expo" style={{ width: `${done * 100}%` }} />
           </div>
           <Button variant="ghost" className="h-9 px-3 text-[13px] font-medium" onClick={finish} disabled={busy}>
             End
@@ -352,7 +383,7 @@ export function PracticeSession({ sessionId, kind, stepId, stepTitle, levelId, i
               </form>
             </div>
 
-            {stepDone && phase.name === "feedback" && <StepComplete done={stepDone} onDismiss={() => setStepDone(null)} />}
+            {stepDone && phase.name === "feedback" && <StepComplete done={stepDone} />}
 
             {phase.name === "answering" && (phase.error || speech.error) && (
               <p role="alert" className="m-0 -mt-3 flex items-center gap-2.5 text-sm text-bad-soft sm:-mt-4">
@@ -361,7 +392,9 @@ export function PracticeSession({ sessionId, kind, stepId, stepTitle, levelId, i
               </p>
             )}
 
-            {phase.name === "feedback" && <FeedbackDetails feedback={phase.feedback} solidNotes={solidNotes} isLast={isLast} onNext={next} />}
+            {phase.name === "feedback" && (
+              <FeedbackDetails feedback={phase.feedback} solidNotes={solidNotes} nextLabel={nextLabel} loading={loadingMore} onNext={next} />
+            )}
           </>
         )}
       </main>
@@ -427,7 +460,19 @@ function VerdictPill({ feedback }: { feedback: Feedback }) {
   );
 }
 
-function FeedbackDetails({ feedback, solidNotes, isLast, onNext }: { feedback: Feedback; solidNotes: string[]; isLast: boolean; onNext: () => void }) {
+function FeedbackDetails({
+  feedback,
+  solidNotes,
+  nextLabel,
+  loading,
+  onNext,
+}: {
+  feedback: Feedback;
+  solidNotes: string[];
+  nextLabel: string;
+  loading: boolean;
+  onNext: () => void;
+}) {
   const base = morphDuration(feedback.diff) + 120;
   const changed = feedback.diff.some((d) => d.op !== "same");
   return (
@@ -489,8 +534,16 @@ function FeedbackDetails({ feedback, solidNotes, isLast, onNext }: { feedback: F
           )}
         </span>
         <Dock style={{ animationDelay: `${base + 150}ms` }}>
-          <Button variant="light" size="lg" autoFocus onClick={onNext} className="w-full sm:w-auto">
-            {isLast ? "See results" : "Next"} <span aria-hidden="true">→</span>
+          <Button variant="light" size="lg" autoFocus onClick={onNext} disabled={loading} aria-busy={loading} className="w-full sm:w-auto">
+            {loading ? (
+              <>
+                <Spinner /> More questions
+              </>
+            ) : (
+              <>
+                {nextLabel} <span aria-hidden="true">→</span>
+              </>
+            )}
           </Button>
         </Dock>
       </div>
@@ -498,7 +551,8 @@ function FeedbackDetails({ feedback, solidNotes, isLast, onNext }: { feedback: F
   );
 }
 
-function StepComplete({ done, onDismiss }: { done: NonNullable<Feedback["stepCompleted"]>; onDismiss: () => void }) {
+// The answer that finished the step. Next wraps up the session.
+function StepComplete({ done }: { done: NonNullable<Feedback["stepCompleted"]> }) {
   return (
     <section
       aria-live="polite"
@@ -513,18 +567,10 @@ function StepComplete({ done, onDismiss }: { done: NonNullable<Feedback["stepCom
           <span className="text-sm text-fg-muted">
             Up next:{" "}
             <span lang="es" className="text-fg-soft">
-              {done.next}
+              {done.next.title}
             </span>
           </span>
         )}
-      </div>
-      <div className="flex w-full gap-2.5 sm:w-auto">
-        <Button variant="secondary" onClick={onDismiss} className="flex-1 sm:flex-none">
-          Keep practicing
-        </Button>
-        <ButtonLink href="/" variant="primary" className="flex-1 sm:flex-none">
-          Journey <span aria-hidden="true">→</span>
-        </ButtonLink>
       </div>
     </section>
   );

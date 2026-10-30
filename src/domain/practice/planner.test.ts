@@ -5,7 +5,7 @@ import { planCheckpoint, planLearnSession, type PlanExercise, type PlanSkill } f
 // Deterministic "random" so plans are repeatable.
 const seeded = (seed = 1) => () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
 
-const skill = (id: string, kind: "form" | "usage", correctCount = 0, solid = false): PlanSkill => ({ id, kind, correctCount, solid });
+const skill = (id: string, kind: "form" | "usage", needed = 3): PlanSkill => ({ id, kind, needed });
 const sentences = (skillId: string, n: number, recent = 0): PlanExercise[] =>
   Array.from({ length: n }, (_, i) => ({ id: `${skillId}#${i}`, skillIds: [skillId], recentlySeen: i < recent }));
 
@@ -26,7 +26,7 @@ test("form skills alternate between drills and sentences", () => {
 });
 
 test("skills that still need work get all their turns; solid ones only top up", () => {
-  const plan = planLearnSession([skill("form:a", "form", 3, true), skill("usage:c", "usage", 1)], [], bank, seeded());
+  const plan = planLearnSession([skill("form:a", "form", 0), skill("usage:c", "usage", 2)], [], bank, seeded());
   assert.equal(plan.filter((p) => p.skillId === "usage:c").length, 2); // needs 2 more
   assert.ok(plan.every((p) => p.skillId === "usage:c" || p.skillId === "form:a"));
 });
@@ -44,7 +44,7 @@ test("a session stretches to finish the step when that fits", () => {
 });
 
 test("a session needing only a little is topped up with the step's other skills", () => {
-  const nearlyDone = [skill("form:a", "form", 2), skill("form:b", "form", 3, true), skill("usage:c", "usage", 4, true), skill("usage:d", "usage", 3, true)];
+  const nearlyDone = [skill("form:a", "form", 1), skill("form:b", "form", 0), skill("usage:c", "usage", 0), skill("usage:d", "usage", 0)];
   const plan = planLearnSession(nearlyDone, [], nearlyDone.flatMap((s) => sentences(s.id, 4)), seeded(), 20);
   assert.ok(plan.length >= 8, `only ${plan.length} questions`);
   assert.ok(plan.some((p) => p.skillId === "form:a"), "the skill that still needs work is included");
@@ -70,13 +70,36 @@ test("no sentence repeats within a session, and fresh ones come before recent on
 });
 
 test("reviews are mixed in, capped at about a third of the session", () => {
-  const reviews = Array.from({ length: 12 }, (_, i) => skill(`usage:r${i}`, "usage", 3, true));
+  const reviews = Array.from({ length: 12 }, (_, i) => skill(`usage:r${i}`, "usage", 0));
   const reviewBank = reviews.flatMap((r) => sentences(r.id, 1));
   const many = Array.from({ length: 10 }, (_, i) => skill(`usage:t${i}`, "usage"));
   const plan = planLearnSession(many, reviews, [...reviewBank, ...many.flatMap((s) => sentences(s.id, 3))], seeded(), 20);
   assert.equal(plan.length, 20);
   assert.equal(plan.filter((p) => p.skillId.startsWith("usage:r")).length, 6);
   assert.ok(!plan.slice(-6).every((p) => p.skillId.startsWith("usage:r")), "reviews shouldn't all be bunched at the end");
+});
+
+test("a skill that needs two in a row gets two turns, however many it got right before", () => {
+  // e.g. 4 right, then a miss: enough correct answers, but the streak is broken
+  const plan = planLearnSession([skill("usage:c", "usage", 2), skill("form:a", "form", 0)], [], bank, seeded(), 20, 0);
+  assert.equal(plan.filter((p) => p.skillId === "usage:c").length, 2);
+});
+
+test("a continuing session asks only what the step still needs — no topping up", () => {
+  const nearlyDone = [skill("form:a", "form", 1), skill("form:b", "form", 0), skill("usage:c", "usage", 0)];
+  const plan = planLearnSession(nearlyDone, [], bank, seeded(), 20, 0);
+  assert.deepEqual(
+    plan.map((p) => p.skillId),
+    ["form:a"],
+  );
+});
+
+test("sentences already answered this session come back only when nothing else is left", () => {
+  const bank = sentences("usage:c", 4).map((e, i) => ({ ...e, usedThisSession: i < 2 }));
+  const plan = planLearnSession([skill("usage:c", "usage", 3)], [], bank, seeded(), 20, 0);
+  const ids = plan.flatMap((p) => (p.kind === "sentence" ? [p.exerciseId] : []));
+  assert.deepEqual(ids.slice(0, 2).sort(), ["usage:c#2", "usage:c#3"]);
+  assert.equal(ids.length, 3);
 });
 
 test("a usage skill with no sentences is left out rather than breaking the plan", () => {

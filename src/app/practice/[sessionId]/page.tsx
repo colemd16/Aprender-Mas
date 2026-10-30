@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { Suspense } from "react";
 import { PracticeSession } from "@/components/practice/practice-session";
-import { getOwnedSession, getSessionPlan, getStepSolidCount } from "@/data/practice";
+import { getOwnedSession, getSessionPlan, getStepProgress } from "@/data/practice";
 import { getCurrentUser } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Practice · Aprender Más" };
@@ -25,7 +25,7 @@ async function Practice({ params }: { params: PageProps<"/practice/[sessionId]">
 
   const [items, progress] = await Promise.all([
     getSessionPlan(user.id, session),
-    session.kind === "learn" && session.stepId ? getStepSolidCount(user.id, session.stepId) : null,
+    session.kind === "learn" && session.stepId ? getStepProgress(user.id, session.stepId) : null,
   ]);
 
   return (

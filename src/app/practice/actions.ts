@@ -12,12 +12,14 @@ import {
   canOpenStep,
   getAccentMode,
   getOwnedSession,
+  getSessionPlan,
   getSkillTitles,
+  getStepProgress,
   getStepSkillProgress,
-  getStepSolidCount,
   getStepTitle,
   loadFormExercise,
   loadSentenceExercise,
+  type PracticeItem,
 } from "@/data/practice";
 import { diffAnswer, type DiffOp } from "@/domain/grading/diff";
 import { gradeForm } from "@/domain/grading/form-grader";
@@ -58,8 +60,8 @@ export type AnswerFeedback =
       errors: { label: string; explanation: string; counts: boolean }[];
       tip: string | null;
       newlySolid: string[];
-      progress: { solid: number; total: number } | null;
-      stepCompleted: { title: string; next: string | null } | null;
+      progress: { solid: number; total: number; needed: number } | null;
+      stepCompleted: { title: string; next: { id: string; title: string } | null } | null;
     }
   | { ok: false; message: string };
 
@@ -99,12 +101,12 @@ export async function submitAnswer(input: AnswerInput): Promise<AnswerFeedback> 
   });
 
   const titles = await getSkillTitles(outcome.newlySolid);
-  let stepCompleted: { title: string; next: string | null } | null = null;
+  let stepCompleted: Extract<AnswerFeedback, { ok: true }>["stepCompleted"] = null;
   if (outcome.completedStepId) {
     const allSteps = await db.select({ id: steps.id, levelId: steps.levelId, position: steps.position, title: steps.title }).from(steps);
     const done = await db.select({ stepId: stepProgress.stepId }).from(stepProgress).where(and(eq(stepProgress.userId, user.id), eq(stepProgress.status, "completed")));
     const next = findActiveStep(allSteps, new Set(done.map((d) => d.stepId)));
-    stepCompleted = { title: (await getStepTitle(outcome.completedStepId)) ?? "Step", next: next?.title ?? null };
+    stepCompleted = { title: (await getStepTitle(outcome.completedStepId)) ?? "Step", next: next ? { id: next.id, title: next.title } : null };
     revalidatePath("/");
   }
 
@@ -118,9 +120,21 @@ export async function submitAnswer(input: AnswerInput): Promise<AnswerFeedback> 
     errors: result.errors.map((e) => ({ label: ERROR_NAMES.get(e.type) ?? e.type, explanation: e.explanation, counts: e.counts })),
     tip: result.tip ?? null,
     newlySolid: outcome.newlySolid.map((id) => titles.get(id) ?? id),
-    progress: session.kind === "learn" && session.stepId ? await getStepSolidCount(user.id, session.stepId) : null,
+    progress: session.kind === "learn" && session.stepId ? await getStepProgress(user.id, session.stepId) : null,
     stepCompleted,
   };
+}
+
+// More questions for a learn session that has run through its plan without finishing
+// its step — planned from where the skills stand now. None once the step is complete
+// (or the session has ended), and the session wraps up.
+export async function moreQuestions(sessionId: string): Promise<PracticeItem[]> {
+  const user = await getCurrentUser();
+  const session = await getOwnedSession(user.id, sessionId);
+  if (!session || session.endedAt || session.kind !== "learn" || !session.stepId) return [];
+  const { needed } = await getStepProgress(user.id, session.stepId);
+  if (needed === 0) return [];
+  return getSessionPlan(user.id, session, { continuing: true });
 }
 
 export type SessionSummary = {

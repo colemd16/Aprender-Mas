@@ -7,16 +7,18 @@ export const SESSION_SIZE = 20;
 // A session stretches up to this size when that lets it finish the step.
 export const SESSION_STRETCH = 25;
 // …and is topped up to at least this many with the step's other skills, so a session
-// that only needs one more answer still feels like practice.
+// that only needs one more answer still feels like practice. (Not when a session
+// continues with more questions: then it's only what the step still needs.)
 export const SESSION_MINIMUM = 8;
 export const CHECKPOINT_SIZE_DEFAULT = 15;
 const REVIEW_SHARE = 0.3;
 
-export type PlanSkill = { id: string; kind: "form" | "usage"; correctCount: number; solid: boolean };
+// `needed`: correct answers still needed for the skill to be solid (answersToSolid) — 0 once it is.
+export type PlanSkill = { id: string; kind: "form" | "usage"; needed: number };
 
 // What the planner needs to know about a sentence: which skills it trains, and whether
-// the learner has seen it lately.
-export type PlanExercise = { id: string; skillIds: string[]; recentlySeen: boolean };
+// the learner has seen it lately (or already in this session).
+export type PlanExercise = { id: string; skillIds: string[]; recentlySeen: boolean; usedThisSession?: boolean };
 
 export type PlannedItem = { kind: "form"; skillId: string } | { kind: "sentence"; exerciseId: string; skillId: string };
 
@@ -31,12 +33,14 @@ function shuffle<T>(items: T[], rng: Rng) {
   return a;
 }
 
-// Fresh sentences first, then ones seen lately; never the same sentence twice in a session.
+// Fresh sentences first, then ones seen lately, then (only if nothing else is left) ones
+// already answered this session; never the same sentence twice in one plan.
 function sentencePicker(exercises: PlanExercise[], rng: Rng) {
   const used = new Set<string>();
   const bySkill = new Map<string, PlanExercise[]>();
+  const staleness = (e: PlanExercise) => (e.usedThisSession ? 2 : 0) + (e.recentlySeen ? 1 : 0);
   for (const e of shuffle(exercises, rng)) for (const s of e.skillIds) bySkill.set(s, [...(bySkill.get(s) ?? []), e]);
-  for (const list of bySkill.values()) list.sort((a, b) => Number(a.recentlySeen) - Number(b.recentlySeen));
+  for (const list of bySkill.values()) list.sort((a, b) => staleness(a) - staleness(b));
   return (skillId: string) => {
     const pick = bySkill.get(skillId)?.find((e) => !used.has(e.id));
     if (pick) used.add(pick.id);
@@ -85,6 +89,7 @@ export function planLearnSession(
   exercises: PlanExercise[],
   rng: Rng = Math.random,
   size = SESSION_SIZE,
+  minimum = SESSION_MINIMUM,
 ): PlannedItem[] {
   const pickSentence = sentencePicker(exercises, rng);
   const itemFor = (skill: PlanSkill, nth: number): PlannedItem | null => {
@@ -96,13 +101,14 @@ export function planLearnSession(
     return skill.kind === "form" ? { kind: "form", skillId: skill.id } : null;
   };
 
-  const targets = stepSkills.some((s) => !s.solid) ? stepSkills.filter((s) => !s.solid) : stepSkills;
+  const targets = stepSkills.some((s) => s.needed > 0) ? stepSkills.filter((s) => s.needed > 0) : stepSkills;
   const reviewSlots = Math.min(reviewSkills.length, Math.round(size * REVIEW_SHARE));
 
-  // Each target gets as many turns as it still needs, in order (a drill before the form
-  // shows up in a sentence)…
+  // Each target gets as many turns as it still needs — counting the "in a row" rule, so a
+  // skill missed after three right answers still gets two — in order (a drill before the
+  // form shows up in a sentence)…
   const sequences = targets.map((skill) =>
-    Array.from({ length: Math.max(1, SOLID_MIN_CORRECT - skill.correctCount) }, (_, nth) => itemFor(skill, nth)).filter((i): i is PlannedItem => i !== null),
+    Array.from({ length: Math.max(1, skill.needed) }, (_, nth) => itemFor(skill, nth)).filter((i): i is PlannedItem => i !== null),
   );
   // If everything still needed fits in a slightly longer session, the session stretches
   // so the step can be finished in one go…
@@ -121,9 +127,9 @@ export function planLearnSession(
   // A short session gets extra turns from the step's other skills (sentences first)…
   const total = () => kept.reduce((n, s) => n + s.length, 0) + reviewSlots;
   const extras = shuffle(stepSkills.filter((s) => !targets.includes(s)), rng);
-  for (let round = 0; total() < SESSION_MINIMUM && extras.length && round < SOLID_MIN_CORRECT; round++) {
+  for (let round = 0; total() < minimum && extras.length && round < SOLID_MIN_CORRECT; round++) {
     for (const skill of extras) {
-      if (total() >= SESSION_MINIMUM) break;
+      if (total() >= minimum) break;
       const item = itemFor(skill, round + 1);
       if (item) kept.push([item]);
     }

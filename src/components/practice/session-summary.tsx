@@ -1,4 +1,4 @@
-import { startPractice, type SessionSummary } from "@/app/practice/actions";
+import { startPractice, type AnswerFeedback, type SessionSummary } from "@/app/practice/actions";
 import { ButtonLink } from "@/components/ui/button";
 import { Dock } from "@/components/ui/dock";
 import { ProgressRing } from "@/components/ui/progress-ring";
@@ -15,10 +15,13 @@ type Props = {
   stepId: string | null;
   stepTitle: string;
   levelId: number | null;
+  completed: Extract<AnswerFeedback, { ok: true }>["stepCompleted"]; // the step this session finished, if it did
 };
 
-export function SessionSummaryView({ sessionId, summary, kind, stepId, stepTitle, levelId }: Props) {
+export function SessionSummaryView({ sessionId, summary, kind, stepId, stepTitle, levelId, completed }: Props) {
   const share = summary.answered ? summary.correct / summary.answered : 0;
+  const toGo = summary.skills.reduce((n, s) => n + s.needed, 0);
+  const next = completed?.next;
   const cp = summary.checkpoint;
   const ringColor = cp ? (cp.passed ? "var(--color-ok)" : "var(--color-note)") : "var(--color-ok)";
   const value = cp ? cp.score : share;
@@ -56,38 +59,64 @@ export function SessionSummaryView({ sessionId, summary, kind, stepId, stepTitle
               </>
             ) : (
               <>
-                <span className="self-start rounded-full bg-ok/12 px-3 py-1.5 text-[13px] font-semibold text-ok">Session done</span>
+                <span className="self-start rounded-full bg-ok/12 px-3 py-1.5 text-[13px] font-semibold text-ok">
+                  {completed ? "Step complete" : "Session done"}
+                </span>
                 <h1 lang="es" className="m-0 text-[32px] leading-[1.05] font-semibold tracking-[-0.04em] sm:text-[40px]">
                   {stepTitle}
                 </h1>
                 <p className="m-0 text-fg-muted">
                   {summary.answered === 0
                     ? "No answers this time."
-                    : `${summary.correct} of ${summary.answered} right. Everything you missed will come back in reviews.`}
+                    : completed
+                      ? `Every skill in this step is solid. ${summary.correct} of ${summary.answered} right along the way.`
+                      : kind === "learn" && toGo > 0
+                        ? `${summary.correct} of ${summary.answered} right. Your progress is saved — ${toGo} more correct answer${toGo === 1 ? "" : "s"} to finish the step.`
+                        : `${summary.correct} of ${summary.answered} right. Everything you missed will come back in reviews.`}
                 </p>
               </>
             )}
           </div>
         </div>
 
-        {kind === "learn" && summary.skills.length > 0 && <SkillProgress skills={summary.skills} className="animate-rise [animation-delay:450ms]" />}
+        {kind === "learn" && !completed && summary.skills.length > 0 && (
+          <SkillProgress skills={summary.skills} className="animate-rise [animation-delay:450ms]" />
+        )}
 
         <Dock className="[animation-delay:550ms] sm:flex-wrap sm:gap-3">
-          <ButtonLink href="/" variant="primary" size="lg" className="w-full sm:w-auto">
-            Back to journey <span aria-hidden="true">→</span>
-          </ButtonLink>
+          {next ? (
+            <ButtonLink href={`/steps/${next.id}`} variant="primary" size="lg" className="w-full sm:w-auto">
+              Next:{" "}
+              <span lang="es" className="min-w-0 truncate">
+                {next.title}
+              </span>{" "}
+              <span aria-hidden="true">→</span>
+            </ButtonLink>
+          ) : (
+            <ButtonLink href="/" variant="primary" size="lg" className="w-full sm:w-auto">
+              Back to journey <span aria-hidden="true">→</span>
+            </ButtonLink>
+          )}
           <div className="flex gap-2.5 sm:contents">
             {summary.answered > 0 && (
-              <ButtonLink href={`/sessions/${sessionId}`} variant="secondary" size="lg" className="flex-1 bg-night/60 sm:flex-none sm:bg-transparent">
+              <ButtonLink href={`/sessions/${sessionId}`} variant="secondary" size="lg" className="flex-1 sm:flex-none">
                 Review<span className="hidden min-[400px]:inline">&nbsp;answers</span>
               </ButtonLink>
             )}
-            {stepId && !cp?.passed && (
-              <form action={startPractice.bind(null, stepId)} className="flex flex-1 sm:flex-none">
-                <SubmitButton variant="secondary" size="lg" pendingLabel="Starting" className="flex-1 bg-night/60 sm:bg-transparent">
-                  {kind === "checkpoint" ? "Try again" : "Practice again"}
-                </SubmitButton>
-              </form>
+            {next ? (
+              <ButtonLink href="/" variant="secondary" size="lg" className="flex-1 sm:flex-none">
+                Journey
+              </ButtonLink>
+            ) : (
+              stepId &&
+              !cp?.passed &&
+              !completed && (
+                <form action={startPractice.bind(null, stepId)} className="flex flex-1 sm:flex-none">
+                  <SubmitButton variant="secondary" size="lg" pendingLabel="Starting" className="flex-1">
+                    {kind === "checkpoint" ? "Try again" : toGo > 0 ? "Keep going" : "Practice again"}
+                  </SubmitButton>
+                </form>
+              )
             )}
           </div>
         </Dock>
