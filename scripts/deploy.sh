@@ -32,7 +32,7 @@ tar -rf "${ARCHIVE%.gz}" -C "$WORK" .archive-commit
 gzip -f "${ARCHIVE%.gz}"
 
 REMOTE=/tmp/aprender-mas-$COMMIT.tar.gz
-echo "Uploading $COMMIT…"
+echo "Uploading ${COMMIT}…"
 gcloud compute scp "$ARCHIVE" "$VM:$REMOTE" "${GCLOUD[@]}" >/dev/null
 gcloud compute ssh "$VM" "${GCLOUD[@]}" --command "
   STAGE=\$(mktemp -d)
