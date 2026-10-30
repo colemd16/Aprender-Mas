@@ -28,7 +28,8 @@ ARCHIVE=$WORK/aprender-mas.tar.gz
 # Stamp the archive with its commit so the server knows what's live.
 echo "$COMMIT" > "$WORK/.archive-commit"
 git archive --format=tar HEAD > "${ARCHIVE%.gz}"
-tar -rf "${ARCHIVE%.gz}" -C "$WORK" .archive-commit
+# No macOS metadata in the archive (Linux tar would warn about it).
+COPYFILE_DISABLE=1 tar --no-mac-metadata -rf "${ARCHIVE%.gz}" -C "$WORK" .archive-commit
 gzip -f "${ARCHIVE%.gz}"
 
 REMOTE=/tmp/aprender-mas-$COMMIT.tar.gz
