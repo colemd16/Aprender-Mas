@@ -53,7 +53,7 @@ rollback() {
   if $DEPS_CHANGED; then nice -n 10 npm ci --no-audit --no-fund >/dev/null; fi
   rm -rf .next && mv .next-prev .next
   sudo systemctl start "$SERVICE"
-  rm -rf "$INCOMING"
+  rm -rf "$INCOMING" "$ROLLBACK"
   log "Rolled back; $OLD_COMMIT is live again."
   exit 1
 }

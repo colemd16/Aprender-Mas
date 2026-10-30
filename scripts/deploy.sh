@@ -26,11 +26,7 @@ WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 ARCHIVE=$WORK/aprender-mas.tar.gz
 # Stamp the archive with its commit so the server knows what's live.
-echo "$COMMIT" > "$WORK/.archive-commit"
-git archive --format=tar HEAD > "${ARCHIVE%.gz}"
-# No macOS metadata in the archive (Linux tar would warn about it).
-COPYFILE_DISABLE=1 tar --no-mac-metadata -rf "${ARCHIVE%.gz}" -C "$WORK" .archive-commit
-gzip -f "${ARCHIVE%.gz}"
+git archive --format=tar.gz --add-virtual-file=".archive-commit:$COMMIT" -o "$ARCHIVE" HEAD
 
 REMOTE=/tmp/aprender-mas-$COMMIT.tar.gz
 echo "Uploading ${COMMIT}…"
