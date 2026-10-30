@@ -162,17 +162,7 @@ export function PracticeSession({ sessionId, kind, stepId, stepTitle, levelId, i
   }
 
   if (phase.name === "done") {
-    return (
-      <SessionSummaryView
-        sessionId={sessionId}
-        summary={phase.summary}
-        kind={kind}
-        stepId={stepId}
-        stepTitle={stepTitle}
-        levelId={levelId}
-        completed={stepDone}
-      />
-    );
+    return <SessionSummaryView sessionId={sessionId} summary={phase.summary} kind={kind} stepId={stepId} stepTitle={stepTitle} levelId={levelId} />;
   }
 
   const answered = index + (phase.name === "feedback" ? 1 : 0);

@@ -32,6 +32,20 @@ import { anthropic, GRADING_MODEL } from "@/lib/anthropic";
 
 const ERROR_NAMES = new Map(ERROR_TYPES.map((e) => [e.id, e.name]));
 
+// The step to move on to: the first one not yet completed.
+export type UpNext = { id: string; title: string; kind: "learn" | "checkpoint"; levelId: number; position: number };
+
+async function nextStepFor(userId: string): Promise<UpNext | null> {
+  const [allSteps, done] = await Promise.all([
+    db.select({ id: steps.id, levelId: steps.levelId, position: steps.position, title: steps.title, kind: steps.kind }).from(steps),
+    db
+      .select({ stepId: stepProgress.stepId })
+      .from(stepProgress)
+      .where(and(eq(stepProgress.userId, userId), eq(stepProgress.status, "completed"))),
+  ]);
+  return findActiveStep(allSteps, new Set(done.map((d) => d.stepId)));
+}
+
 export async function startPractice(stepId: string) {
   const user = await getCurrentUser();
   const step = await canOpenStep(user.id, stepId);
@@ -61,7 +75,7 @@ export type AnswerFeedback =
       tip: string | null;
       newlySolid: string[];
       progress: { solid: number; total: number; needed: number } | null;
-      stepCompleted: { title: string; next: { id: string; title: string } | null } | null;
+      stepCompleted: { title: string; next: UpNext | null } | null;
     }
   | { ok: false; message: string };
 
@@ -103,10 +117,7 @@ export async function submitAnswer(input: AnswerInput): Promise<AnswerFeedback> 
   const titles = await getSkillTitles(outcome.newlySolid);
   let stepCompleted: Extract<AnswerFeedback, { ok: true }>["stepCompleted"] = null;
   if (outcome.completedStepId) {
-    const allSteps = await db.select({ id: steps.id, levelId: steps.levelId, position: steps.position, title: steps.title }).from(steps);
-    const done = await db.select({ stepId: stepProgress.stepId }).from(stepProgress).where(and(eq(stepProgress.userId, user.id), eq(stepProgress.status, "completed")));
-    const next = findActiveStep(allSteps, new Set(done.map((d) => d.stepId)));
-    stepCompleted = { title: (await getStepTitle(outcome.completedStepId)) ?? "Step", next: next ? { id: next.id, title: next.title } : null };
+    stepCompleted = { title: (await getStepTitle(outcome.completedStepId)) ?? "Step", next: await nextStepFor(user.id) };
     revalidatePath("/");
   }
 
@@ -142,6 +153,8 @@ export type SessionSummary = {
   correct: number; // correct or acceptable
   skills: { id: string; title: string; needed: number; solid: boolean }[]; // the step's skills, for learn sessions
   checkpoint: { score: number; passed: boolean; nextLevelUnlocked: boolean } | null;
+  stepComplete: boolean; // a learn session's step has every skill solid
+  upNext: UpNext | null; // where to go next, once this session's step (or checkpoint) is behind you
 };
 
 export async function finishSession(sessionId: string): Promise<SessionSummary> {
@@ -149,7 +162,10 @@ export async function finishSession(sessionId: string): Promise<SessionSummary> 
   const session = await getOwnedSession(user.id, sessionId);
   if (!session) redirect("/");
 
-  const rows = await db.select({ verdict: attempts.verdict }).from(attempts).where(and(eq(attempts.sessionId, session.id), eq(attempts.userId, user.id)));
+  const rows = await db
+    .select({ verdict: attempts.verdict })
+    .from(attempts)
+    .where(and(eq(attempts.sessionId, session.id), eq(attempts.userId, user.id)));
   const correct = rows.filter((r) => r.verdict !== "incorrect").length;
 
   let checkpoint: SessionSummary["checkpoint"] = null;
@@ -171,5 +187,9 @@ export async function finishSession(sessionId: string): Promise<SessionSummary> 
   if (!session.endedAt) await endSession(user.id, session.id);
   revalidatePath("/");
   const skills = session.kind === "learn" && session.stepId ? await getStepSkillProgress(user.id, session.stepId) : [];
-  return { answered: rows.length, correct, checkpoint, skills };
+  // Decided here, from the saved progress — not from what the screen happened to see — so
+  // a finished step always leads to the next one, however it was finished.
+  const stepComplete = skills.length > 0 && skills.every((s) => s.solid);
+  const upNext = stepComplete || checkpoint?.passed ? await nextStepFor(user.id) : null;
+  return { answered: rows.length, correct, checkpoint, skills, stepComplete, upNext };
 }
