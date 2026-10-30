@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useLayoutEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useTransition } from "react";
 import { finishSession, submitAnswer, type AnswerFeedback, type SessionSummary } from "@/app/practice/actions";
 import type { PracticeItem } from "@/data/practice";
 import { Button, ButtonLink } from "@/components/ui/button";
@@ -50,7 +50,6 @@ export function PracticeSession({ sessionId, kind, stepId, stepTitle, levelId, i
   const [, startTransition] = useTransition();
   const shownAt = useRef(0);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const keyboardRef = useRef<HTMLInputElement>(null);
 
   // The answer box grows with what's typed (or spoken), and shrinks back for the next question.
   useLayoutEffect(() => {
@@ -59,6 +58,21 @@ export function PracticeSession({ sessionId, kind, stepId, stepTitle, levelId, i
     el.style.height = "auto";
     el.style.height = `${el.scrollHeight}px`;
   }, [answer, phase.name]);
+
+  // iPhones can nudge the page up as the keyboard opens even when the answer box is already
+  // in view. The question and answer live at the top, so if they fit above the keyboard,
+  // put the page back.
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    if (!viewport) return;
+    const settle = () => {
+      const el = inputRef.current;
+      if (!el || document.activeElement !== el || (window.scrollY === 0 && viewport.offsetTop === 0)) return;
+      if (el.getBoundingClientRect().bottom + window.scrollY < viewport.height - 8) window.scrollTo({ top: 0 });
+    };
+    viewport.addEventListener("resize", settle);
+    return () => viewport.removeEventListener("resize", settle);
+  }, []);
 
   const item = queue[index];
   const isLast = index >= queue.length - 1;
@@ -108,16 +122,16 @@ export function PracticeSession({ sessionId, kind, stepId, stepTitle, levelId, i
   function next() {
     setSolidNotes([]);
     if (isLast) return finish();
-    // Phones only open the keyboard for focus that happens during the tap itself, and the
-    // answer box doesn't exist yet: focus a stand-in now, then hand focus to the real box.
-    keyboardRef.current?.focus({ preventScroll: true });
+    // Phones only open the keyboard for focus that happens during the tap itself. The answer
+    // box stays on the page (hidden) through the feedback, right where it reappears, so it can
+    // be focused now — and with nothing to scroll to, the keyboard comes up without the page jumping.
+    window.scrollTo({ top: 0 });
+    inputRef.current?.focus({ preventScroll: true });
     setIndex((i) => i + 1);
     setAnswer("");
     setSpoken(false);
     setPhase({ name: "answering" });
     shownAt.current = Date.now();
-    window.scrollTo({ top: 0 });
-    requestAnimationFrame(() => inputRef.current?.focus());
   }
 
   function finish() {
@@ -142,8 +156,6 @@ export function PracticeSession({ sessionId, kind, stepId, stepTitle, levelId, i
 
   return (
     <div className="flex min-h-app flex-col bg-[radial-gradient(900px_420px_at_50%_36%,rgb(252_209_22/0.07),transparent_70%),radial-gradient(1000px_520px_at_85%_-10%,rgb(0_56_147/0.45),transparent_70%)]">
-      <input ref={keyboardRef} aria-hidden="true" tabIndex={-1} className="pointer-events-none fixed top-0 left-0 size-px text-base opacity-0" />
-
       {/* Phones: one slim bar — end, how far through, how many. */}
       <header className="sticky top-[calc(env(safe-area-inset-top)+3px)] z-40 flex items-center gap-2 bg-night/70 py-2 pr-4 pl-2 backdrop-blur-xl sm:hidden">
         <button
@@ -222,8 +234,8 @@ export function PracticeSession({ sessionId, kind, stepId, stepTitle, levelId, i
 
             <Prompt key={item.key} item={item} />
 
-            <div className={cn("glass rounded-[22px] sm:py-[22px] sm:pr-[22px] sm:pl-7", phase.name === "feedback" ? "p-4" : "py-2 pr-2 pl-4")}>
-              {phase.name === "feedback" ? (
+            <div className={cn("glass relative rounded-[22px] sm:py-[22px] sm:pr-[22px] sm:pl-7", phase.name === "feedback" ? "p-4" : "py-2 pr-2 pl-4")}>
+              {phase.name === "feedback" && (
                 <div className="flex flex-wrap items-center justify-between gap-3 sm:gap-4">
                   <Morph
                     ops={phase.feedback.diff}
@@ -232,72 +244,79 @@ export function PracticeSession({ sessionId, kind, stepId, stepTitle, levelId, i
                   />
                   <VerdictPill feedback={phase.feedback} />
                 </div>
-              ) : (
-                <form
-                  className="flex items-end gap-2 sm:gap-3"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    submit();
+              )}
+              {/* Always mounted, so the answer box is never recreated: during feedback it's
+                  invisible but still focusable (see next()). */}
+              <form
+                aria-hidden={phase.name === "feedback" || undefined}
+                className={
+                  phase.name === "feedback" ? "pointer-events-none absolute top-4 left-4 size-px overflow-hidden opacity-0" : "flex items-end gap-2 sm:gap-3"
+                }
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  submit();
+                }}
+              >
+                <label htmlFor="answer" className="sr-only">
+                  Your answer in Spanish
+                </label>
+                <textarea
+                  id="answer"
+                  ref={inputRef}
+                  rows={1}
+                  lang="es"
+                  autoFocus
+                  autoComplete="off"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  enterKeyHint="go"
+                  value={answer}
+                  onChange={(e) => {
+                    // One line of thought: pasted line breaks become spaces.
+                    setAnswer(e.target.value.replace(/\s*\n\s*/g, " "));
+                    if (!shownAt.current) shownAt.current = Date.now();
                   }}
-                >
-                  <label htmlFor="answer" className="sr-only">
-                    Your answer in Spanish
-                  </label>
-                  <textarea
-                    id="answer"
-                    ref={inputRef}
-                    rows={1}
-                    lang="es"
-                    autoFocus
-                    autoComplete="off"
-                    autoCapitalize="none"
-                    autoCorrect="off"
-                    spellCheck={false}
-                    enterKeyHint="go"
-                    value={answer}
-                    onChange={(e) => {
-                      // One line of thought: pasted line breaks become spaces.
-                      setAnswer(e.target.value.replace(/\s*\n\s*/g, " "));
-                      if (!shownAt.current) shownAt.current = Date.now();
-                    }}
-                    onKeyDown={(e) => {
-                      // Enter checks the answer; it never adds a new line.
-                      if (e.key === "Enter" && !e.nativeEvent.isComposing) {
-                        e.preventDefault();
-                        submit();
-                      }
-                    }}
-                    readOnly={phase.name === "grading"}
-                    placeholder={speech.listening ? "Escuchando…" : "Escribe en español…"}
-                    className="block min-w-0 flex-1 resize-none overflow-hidden bg-transparent py-2 text-[22px] leading-[1.25] font-medium tracking-[-0.02em] text-fg outline-none placeholder:text-fg-faint sm:py-1.5 sm:text-[36px] sm:leading-[1.2]"
-                  />
-                  {speech.supported && (
-                    <button
-                      type="button"
-                      onClick={speech.listening ? speech.stop : speech.start}
-                      aria-label={speech.listening ? "Stop listening" : "Speak your answer"}
-                      aria-pressed={speech.listening}
-                      className={cn(
-                        "flex size-11 flex-none cursor-pointer items-center justify-center rounded-[14px] border transition-[transform,background] duration-200 ease-spring hover:-translate-y-px active:scale-[0.94] sm:size-[52px] sm:rounded-2xl",
-                        speech.listening ? "border-accent bg-accent/15 text-accent-bright animate-glow-pulse" : "border-white/10 bg-white/5 text-fg",
-                      )}
+                  onKeyDown={(e) => {
+                    // Enter checks the answer; it never adds a new line.
+                    if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+                      e.preventDefault();
+                      submit();
+                    }
+                  }}
+                  readOnly={phase.name === "grading"}
+                  tabIndex={phase.name === "feedback" ? -1 : undefined}
+                  placeholder={speech.listening ? "Escuchando…" : "Escribe en español…"}
+                  className="block min-w-0 flex-1 resize-none overflow-hidden bg-transparent py-2 text-[22px] leading-[1.25] font-medium tracking-[-0.02em] text-fg outline-none placeholder:text-fg-faint sm:py-1.5 sm:text-[36px] sm:leading-[1.2]"
+                />
+                {phase.name !== "feedback" && speech.supported && (
+                  <button
+                    type="button"
+                    onClick={speech.listening ? speech.stop : speech.start}
+                    aria-label={speech.listening ? "Stop listening" : "Speak your answer"}
+                    aria-pressed={speech.listening}
+                    className={cn(
+                      "flex size-11 flex-none cursor-pointer items-center justify-center rounded-[14px] border transition-[transform,background] duration-200 ease-spring hover:-translate-y-px active:scale-[0.94] sm:size-[52px] sm:rounded-2xl",
+                      speech.listening ? "border-accent bg-accent/15 text-accent-bright animate-glow-pulse" : "border-white/10 bg-white/5 text-fg",
+                    )}
+                  >
+                    <svg
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      aria-hidden="true"
                     >
-                      <svg
-                        width="20"
-                        height="20"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.8"
-                        strokeLinecap="round"
-                        aria-hidden="true"
-                      >
-                        <rect x="9" y="3" width="6" height="12" rx="3" />
-                        <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
-                      </svg>
-                    </button>
-                  )}
-                  {/* A round send button on phones (like a message composer); "Check ↵" on larger screens. */}
+                      <rect x="9" y="3" width="6" height="12" rx="3" />
+                      <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
+                    </svg>
+                  </button>
+                )}
+                {/* A round send button on phones (like a message composer); "Check ↵" on larger screens. */}
+                {phase.name !== "feedback" && (
                   <button
                     type="submit"
                     aria-label="Check answer"
@@ -329,8 +348,8 @@ export function PracticeSession({ sessionId, kind, stepId, stepTitle, levelId, i
                       </>
                     )}
                   </button>
-                </form>
-              )}
+                )}
+              </form>
             </div>
 
             {stepDone && phase.name === "feedback" && <StepComplete done={stepDone} onDismiss={() => setStepDone(null)} />}
