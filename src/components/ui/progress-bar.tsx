@@ -13,7 +13,7 @@ export function ProgressBar({ value, label, className }: { value: number; label:
       className={cn("h-1.5 overflow-hidden rounded-full bg-white/[0.08]", className)}
     >
       <div
-        className="h-full rounded-full bg-linear-to-r from-[#6f86ff] to-accent shadow-[0_0_12px_rgb(142_162_255/0.6)] transition-[width] duration-700 ease-out-expo"
+        className="h-full rounded-full bg-linear-to-r from-[#e0a800] to-accent shadow-[0_0_12px_rgb(252_209_22/0.5)] transition-[width] duration-700 ease-out-expo"
         style={{ width: `${pct}%` }}
       />
     </div>

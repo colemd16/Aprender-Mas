@@ -21,6 +21,13 @@ export function ratingsFor(result: GradeResult): Map<string, Grade> {
   return ratings;
 }
 
+// How many more correct answers (in a row) until a skill is solid; 0 once it is.
+export function answersToSolid(state: Pick<SkillState, "correctCount" | "streak"> | undefined) {
+  const correct = state?.correctCount ?? 0;
+  const streak = state?.streak ?? 0;
+  return Math.max(0, SOLID_MIN_CORRECT - correct, SOLID_RECENT_STREAK - streak);
+}
+
 export function isSolid(state: Pick<SkillState, "correctCount" | "streak"> | undefined) {
   return !!state && state.correctCount >= SOLID_MIN_CORRECT && state.streak >= SOLID_RECENT_STREAK;
 }

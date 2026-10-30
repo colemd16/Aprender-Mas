@@ -19,9 +19,10 @@ export type JourneyLevel = CurriculumLevel & { state: LevelState };
 
 export type Journey = {
   levels: JourneyLevel[];
-  currentLevel: JourneyLevel;
-  steps: JourneyStep[]; // the current level's steps
-  activeStep: JourneyStep | null; // null once every step in the curriculum is done
+  currentLevel: JourneyLevel; // where the learner is
+  viewedLevel: JourneyLevel; // the level being shown (the current one unless another unlocked one was picked)
+  steps: JourneyStep[]; // the viewed level's steps
+  activeStep: JourneyStep | null; // null once every step is done, or when viewing another level
 };
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
@@ -50,8 +51,9 @@ export function stepState(steps: OrderedStep[], completed: Set<string>, stepId: 
   return findActiveStep(steps, completed)?.id === stepId ? "active" : "upcoming";
 }
 
-// The active step's level is the current one; levels before it are done, levels after are locked.
-export function buildJourney(levels: CurriculumLevel[], steps: CurriculumStep[], completed: Set<string>): Journey {
+// The active step's level is the current one; levels before it are done, levels after are
+// locked. Any unlocked level can be viewed; a locked one shows the current level instead.
+export function buildJourney(levels: CurriculumLevel[], steps: CurriculumStep[], completed: Set<string>, viewLevelId?: number): Journey {
   const ordered = [...steps].sort((a, b) => a.levelId - b.levelId || a.position - b.position);
   const active = findActiveStep(ordered, completed);
   const currentLevelId = active?.levelId ?? Math.max(...levels.map((l) => l.id));
@@ -63,8 +65,11 @@ export function buildJourney(levels: CurriculumLevel[], steps: CurriculumStep[],
       state: level.id < currentLevelId || (!active && level.id === currentLevelId) ? "done" : level.id === currentLevelId ? "current" : "locked",
     }));
 
+  const viewable = journeyLevels.find((l) => l.id === viewLevelId && l.state !== "locked");
+  const viewedLevelId = viewable?.id ?? currentLevelId;
+
   const levelSteps = ordered
-    .filter((s) => s.levelId === currentLevelId)
+    .filter((s) => s.levelId === viewedLevelId)
     .map((s): JourneyStep => ({
       ...s,
       state: completed.has(s.id) ? "done" : s.id === active?.id ? "active" : "upcoming",
@@ -75,6 +80,7 @@ export function buildJourney(levels: CurriculumLevel[], steps: CurriculumStep[],
   return {
     levels: journeyLevels,
     currentLevel: journeyLevels.find((l) => l.id === currentLevelId)!,
+    viewedLevel: journeyLevels.find((l) => l.id === viewedLevelId)!,
     steps: levelSteps,
     activeStep: levelSteps.find((s) => s.state === "active") ?? null,
   };

@@ -1,13 +1,13 @@
 import type { ReactNode } from "react";
 import { cn } from "./cn";
 
-type Tone = "neutral" | "accent" | "ok" | "warn" | "bad";
+type Tone = "neutral" | "accent" | "ok" | "note" | "bad";
 
 const tones: Record<Tone, string> = {
   neutral: "bg-white/[0.04] border border-white/[0.08] text-fg-soft",
   accent: "bg-accent/12 text-accent-bright",
   ok: "bg-ok/12 text-ok",
-  warn: "bg-warn/12 text-warn",
+  note: "bg-note/12 text-note",
   bad: "bg-bad/12 text-bad",
 };
 

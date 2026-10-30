@@ -6,14 +6,18 @@ import { Button } from "@/components/ui/button";
 import { Markdown } from "@/components/ui/markdown";
 import { Dot } from "@/components/ui/pill";
 import { Wordmark } from "@/components/ui/wordmark";
+import { listSessions } from "@/data/history";
 import { getStepIntro } from "@/data/steps";
+import { SessionList } from "@/components/review/session-list";
+import { SkillProgress } from "@/components/steps/skill-progress";
+import { getStepSkillProgress } from "@/data/practice";
 import { CHECKPOINT_PASS, CHECKPOINT_SIZE } from "@/domain/progress/rules";
 import { getCurrentUser } from "@/lib/auth";
 import { startPractice } from "@/app/practice/actions";
 
 export default function StepPage({ params }: PageProps<"/steps/[id]">) {
   return (
-    <div className="flex min-h-screen flex-col bg-[radial-gradient(900px_420px_at_70%_30%,rgb(142_162_255/0.09),transparent_70%)]">
+    <div className="flex min-h-screen flex-col bg-[radial-gradient(900px_420px_at_70%_30%,rgb(252_209_22/0.06),transparent_70%),radial-gradient(900px_520px_at_10%_0%,rgb(0_56_147/0.4),transparent_70%)]">
       <header className="flex flex-wrap items-center justify-between gap-4 px-5 py-4 sm:px-8 sm:py-5">
         <Wordmark />
         <Link href="/" className="text-sm text-fg-soft no-underline hover:text-fg">
@@ -30,7 +34,7 @@ export default function StepPage({ params }: PageProps<"/steps/[id]">) {
 async function StepIntro({ params }: { params: PageProps<"/steps/[id]">["params"] }) {
   const { id } = await params;
   const user = await getCurrentUser();
-  const step = await getStepIntro(user.id, id);
+  const [step, pastSessions, skillProgress] = await Promise.all([getStepIntro(user.id, id), listSessions(user.id, { stepId: id }), getStepSkillProgress(user.id, id)]);
   if (!step) notFound();
   if (step.state === "upcoming") redirect("/");
 
@@ -75,6 +79,18 @@ async function StepIntro({ params }: { params: PageProps<"/steps/[id]">["params"
       </div>
 
       <div className="flex flex-[1_1_440px] flex-col gap-4">
+        {!isCheckpoint && pastSessions.length > 0 && <SkillProgress skills={skillProgress} className="animate-rise" />}
+
+        {pastSessions.length > 0 && (
+          <section aria-label="Your sessions" className="flex animate-rise flex-col gap-3 [animation-delay:80ms]">
+            <h2 className="m-0 flex items-baseline justify-between text-sm font-semibold">
+              Your sessions
+              <span className="font-mono text-xs font-normal text-fg-muted">{pastSessions.length}</span>
+            </h2>
+            <SessionList sessions={pastSessions.map((s) => ({ ...s, startedAt: s.startedAt.toISOString(), lastAnswerAt: s.lastAnswerAt.toISOString() }))} />
+          </section>
+        )}
+
         {step.tables.map((table, i) => (
           <div key={table.tenseId} className="animate-rise" style={{ animationDelay: `${120 + i * 80}ms` }}>
             <FormsTable table={table} delay={i * 200} />

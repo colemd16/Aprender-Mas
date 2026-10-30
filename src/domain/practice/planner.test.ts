@@ -25,15 +25,29 @@ test("form skills alternate between drills and sentences", () => {
   assert.deepEqual(plan.map((p) => p.kind), ["form", "sentence", "form"]);
 });
 
-test("solid skills are skipped while others still need work", () => {
+test("skills that still need work get all their turns; solid ones only top up", () => {
   const plan = planLearnSession([skill("form:a", "form", 3, true), skill("usage:c", "usage", 1)], [], bank, seeded());
-  assert.ok(plan.every((p) => p.skillId === "usage:c"));
-  assert.equal(plan.length, 2);
+  assert.equal(plan.filter((p) => p.skillId === "usage:c").length, 2); // needs 2 more
+  assert.ok(plan.every((p) => p.skillId === "usage:c" || p.skillId === "form:a"));
 });
 
 test("the same skill never comes up twice in a row when it can be avoided", () => {
   const plan = planLearnSession(step, [], bank, seeded(7));
   for (let i = 1; i < plan.length; i++) assert.notEqual(plan[i].skillId, plan[i - 1].skillId);
+});
+
+test("a session stretches to finish the step when that fits", () => {
+  const seven = [...Array.from({ length: 5 }, (_, i) => skill(`form:f${i}`, "form")), skill("usage:a", "usage"), skill("usage:b", "usage")];
+  const plan = planLearnSession(seven, [], seven.flatMap((s) => sentences(s.id, 3)), seeded(), 20);
+  assert.equal(plan.length, 21); // 7 skills × 3 answers: nothing cut, so the step can be finished
+  for (const s of seven) assert.equal(plan.filter((p) => p.skillId === s.id).length, 3);
+});
+
+test("a session needing only a little is topped up with the step's other skills", () => {
+  const nearlyDone = [skill("form:a", "form", 2), skill("form:b", "form", 3, true), skill("usage:c", "usage", 4, true), skill("usage:d", "usage", 3, true)];
+  const plan = planLearnSession(nearlyDone, [], nearlyDone.flatMap((s) => sentences(s.id, 4)), seeded(), 20);
+  assert.ok(plan.length >= 8, `only ${plan.length} questions`);
+  assert.ok(plan.some((p) => p.skillId === "form:a"), "the skill that still needs work is included");
 });
 
 test("drills and sentences are mixed rather than bunched", () => {

@@ -8,7 +8,7 @@ import { signIn } from "./actions";
 
 const fieldClasses =
   "h-[52px] w-full rounded-[14px] border border-white/10 bg-white/[0.04] px-4 text-base font-medium text-fg outline-none " +
-  "transition-[border-color,box-shadow] duration-200 placeholder:text-fg-faint focus:border-accent focus:shadow-[0_0_0_4px_rgb(142_162_255/0.15)]";
+  "transition-[border-color,box-shadow] duration-200 placeholder:text-fg-faint focus:border-accent focus:shadow-[0_0_0_4px_rgb(252_209_22/0.15)]";
 
 export function LoginForm() {
   const [state, action, pending] = useActionState(signIn, undefined);

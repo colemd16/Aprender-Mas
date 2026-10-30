@@ -112,13 +112,13 @@ export function PracticeSession({ sessionId, kind, stepId, stepTitle, levelId, i
   }
 
   if (phase.name === "done") {
-    return <SessionSummaryView summary={phase.summary} kind={kind} stepId={stepId} stepTitle={stepTitle} levelId={levelId} progress={progress} />;
+    return <SessionSummaryView sessionId={sessionId} summary={phase.summary} kind={kind} stepId={stepId} stepTitle={stepTitle} levelId={levelId} />;
   }
 
   const answered = index + (phase.name === "feedback" ? 1 : 0);
 
   return (
-    <div className="flex min-h-screen flex-col bg-[radial-gradient(900px_420px_at_50%_36%,rgb(142_162_255/0.10),transparent_70%)]">
+    <div className="flex min-h-screen flex-col bg-[radial-gradient(900px_420px_at_50%_36%,rgb(252_209_22/0.07),transparent_70%),radial-gradient(1000px_520px_at_85%_-10%,rgb(0_56_147/0.45),transparent_70%)]">
       <header className="flex flex-wrap items-center justify-between gap-4 px-5 py-4 sm:px-8 sm:py-5">
         <Wordmark />
         <div className="flex items-center gap-2.5 rounded-full border border-white/[0.08] bg-white/[0.04] py-1.5 pr-3.5 pl-2 text-[13px] text-fg-soft">
@@ -317,8 +317,8 @@ function FeedbackDetails({ feedback, solidNotes, isLast, onNext }: { feedback: F
         <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-3">
           {feedback.errors.map((e, i) => (
             <div key={i} className="glass-subtle flex animate-pop flex-col gap-2 rounded-[18px] px-5 py-[18px]" style={{ animationDelay: `${base + i * 90}ms` }}>
-              <span className={cn("flex items-center gap-2 text-[13px] font-semibold", e.counts ? "text-bad" : "text-warn")}>
-                <Dot className={e.counts ? "text-bad" : "text-warn"} />
+              <span className={cn("flex items-center gap-2 text-[13px] font-semibold", e.counts ? "text-bad" : "text-note")}>
+                <Dot className={e.counts ? "text-bad" : "text-note"} />
                 {e.label}
               </span>
               <Explanation text={e.explanation} />

@@ -40,6 +40,7 @@ Errors
   - any other wrong tense of the right verb is wrong_tense (*estaría* where *habría estado* is needed).
   - irregular_form only when the verb, tense and person are all right but the form itself is wrong (*decí* for *dije*).
   - agreement: singular vs plural is number_agreement; masculine vs feminine is gender_agreement.
+  - a different "you" from the one the prompt marks — (usted), (tú) or (ustedes) — is wrong_person.
 - "wrong": the exact text from the learner's answer that changes ("" if something was missing). "right": the text that replaces it in "corrected".
 - "explanation": one or two short sentences in English that name the rule, with Spanish words in *asterisks*. Speak to the learner directly ("you").
 - "skill_id": the id of the exercise's target skill this mistake is about, or null if it isn't about any of them.

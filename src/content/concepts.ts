@@ -317,14 +317,16 @@ Never put the conditional right after **si**: *si sería* is always wrong.`,
   },
   {
     id: "commands",
-    title: "Commands: tú and ustedes",
+    title: "Commands: tú, usted and ustedes",
     summary: "Habla, no hables, hablen — telling people what to do.",
     explanation: `- **Tú, affirmative:** same as the él form of the present: *habla, come, escribe*.
 - **Tú, negative:** the subjunctive: *no hables, no comas*.
-- **Ustedes:** the subjunctive, affirmative or negative: *hablen, no hablen*.
+- **Usted** (formal): the subjunctive, affirmative or negative: *hable, no hable; venga, no venga*.
+- **Ustedes:** the subjunctive too: *hablen, no hablen*.
 
-Irregular tú commands: **ven, di, sal, haz, ten, ve, pon, sé**.`,
-    usageSkills: [{ id: "usage:commands-tu-ustedes", title: "Tú and ustedes commands" }],
+Irregular tú commands are short: **ven, haz, di, ten, pon, sal, sé, ve**.
+Irregular usted commands follow the yo form: **venga, haga, diga, tenga, ponga, salga** — plus **sea** and **vaya**.`,
+    usageSkills: [{ id: "usage:commands-tu-ustedes", title: "Tú, usted and ustedes commands" }],
   },
   {
     id: "object-pronouns",

@@ -1,26 +1,33 @@
 @import "tailwindcss";
 
-/* ─── Noche design tokens ─────────────────────────────────────────────────────
-   Dark-first "night studio": one accent with a soft glow, frosted panels,
-   springy motion. Every screen is built from these — no one-off colors. */
+/* ─── Noche design tokens — Colombian edition ─────────────────────────────────
+   Dark-first "night studio" in the colors of the flag: a deep navy from its blue,
+   yellow as the one glowing accent, its red for mistakes and its blue (brightened)
+   for notes. Frosted panels, springy motion. Every screen is built from these —
+   no one-off colors. */
 
 @theme {
   --font-sans: var(--font-geist-sans), system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 
-  --color-night: #0a0c10;
-  --color-fg: #edeff4;
-  --color-fg-soft: #c3c8d4;
-  --color-fg-muted: #9097a8;
-  --color-fg-subtle: #7d8497;
-  --color-fg-faint: #5d6476;
+  --color-night: #070e26; /* the flag's blue (#003893), taken down to night */
+  --color-fg: #eef1f8;
+  --color-fg-soft: #c6cde0;
+  --color-fg-muted: #939cb5;
+  --color-fg-subtle: #8089a4;
+  --color-fg-faint: #5f6884;
 
-  --color-accent: #8ea2ff;
-  --color-accent-bright: #b7c4ff;
+  --color-accent: #fcd116; /* the flag's yellow */
+  --color-accent-bright: #ffe36b;
   --color-ok: #5be0a0;
-  --color-warn: #f2b84b;
-  --color-bad: #ff7a7a;
-  --color-bad-soft: #ff9c9c;
+  --color-note: #7aa2ff; /* the flag's blue, brightened to read on navy: notes, not mistakes */
+  --color-bad: #ff4d61; /* the flag's red (#ce1126), brightened to read on navy */
+  --color-bad-soft: #ff96a2;
+
+  /* The flag's colors at full strength, for decoration (the stripe, the wordmark). */
+  --color-flag-yellow: #fcd116;
+  --color-flag-blue: #003893;
+  --color-flag-red: #ce1126;
 
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   --ease-settle: cubic-bezier(0.34, 1.3, 0.64, 1);
@@ -48,8 +55,8 @@
     40%, 60% { transform: translateX(6px); }
   }
   @keyframes glow-pulse {
-    0%, 100% { box-shadow: 0 0 0 4px rgb(142 162 255 / 0.18), 0 0 18px rgb(142 162 255 / 0.5); }
-    50% { box-shadow: 0 0 0 8px rgb(142 162 255 / 0.06), 0 0 28px rgb(142 162 255 / 0.8); }
+    0%, 100% { box-shadow: 0 0 0 4px rgb(252 209 22 / 0.18), 0 0 18px rgb(252 209 22 / 0.5); }
+    50% { box-shadow: 0 0 0 8px rgb(252 209 22 / 0.06), 0 0 28px rgb(252 209 22 / 0.8); }
   }
   @keyframes spin {
     to { transform: rotate(360deg); }
@@ -61,9 +68,9 @@
     100% { max-width: 0; opacity: 0; transform: scale(0.4); filter: blur(8px); color: var(--color-bad); }
   }
   @keyframes morph-insert {
-    0% { max-width: 0; opacity: 0; transform: scale(0.3); text-shadow: 0 0 0 rgb(142 162 255 / 0); }
-    60% { text-shadow: 0 0 22px rgb(142 162 255 / 0.9); }
-    100% { max-width: 1em; opacity: 1; transform: none; text-shadow: 0 0 10px rgb(142 162 255 / 0.35); }
+    0% { max-width: 0; opacity: 0; transform: scale(0.3); text-shadow: 0 0 0 rgb(252 209 22 / 0); }
+    60% { text-shadow: 0 0 22px rgb(252 209 22 / 0.9); }
+    100% { max-width: 1em; opacity: 1; transform: none; text-shadow: 0 0 10px rgb(252 209 22 / 0.35); }
   }
   @keyframes morph-accent {
     0% { transform: rotateX(90deg); opacity: 0; }
@@ -99,13 +106,13 @@
 }
 
 @utility glow-accent {
-  box-shadow: 0 0 30px rgb(142 162 255 / 0.35);
+  box-shadow: 0 0 30px rgb(252 209 22 / 0.35);
 }
 
 /* Irregular forms glow so they stand out in a table. */
 @utility glow-text {
   color: var(--color-accent-bright);
-  text-shadow: 0 0 14px rgb(142 162 255 / 0.45);
+  text-shadow: 0 0 14px rgb(252 209 22 / 0.45);
 }
 
 @utility glow-dot {
@@ -115,8 +122,19 @@
 /* The soft spotlight behind the main content of a screen. */
 @utility spotlight {
   background:
-    radial-gradient(900px 420px at 50% 20%, rgb(142 162 255 / 0.1), transparent 70%),
+    radial-gradient(900px 420px at 50% 20%, rgb(252 209 22 / 0.07), transparent 70%),
+    radial-gradient(1000px 520px at 85% -10%, rgb(0 56 147 / 0.45), transparent 70%),
     var(--color-night);
+}
+
+/* The flag as a thin stripe — yellow, blue, red in its 2 : 1 : 1 proportions. */
+@utility flag-stripe {
+  background: linear-gradient(
+    90deg,
+    var(--color-flag-yellow) 0 50%,
+    var(--color-flag-blue) 50% 75%,
+    var(--color-flag-red) 75% 100%
+  );
 }
 
 :root {

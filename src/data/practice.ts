@@ -22,7 +22,8 @@ import {
 import type { FormExercise } from "@/domain/grading/form-grader";
 import type { SentenceExercise } from "@/domain/grading/sentence/prompt";
 import { planCheckpoint, planLearnSession, type PlanExercise, type PlannedItem, type PlanSkill } from "@/domain/practice/planner";
-import { stepState } from "@/domain/progress/journey";
+import { findActiveStep, stepState } from "@/domain/progress/journey";
+import { answersToSolid } from "@/domain/learner/skill-state";
 import { SOLID_MIN_CORRECT, SOLID_RECENT_STREAK } from "@/domain/progress/rules";
 
 // Reads for practice. `userId` must come from getCurrentUser(): this connection
@@ -78,6 +79,23 @@ async function exercisesFor(userId: string, where: ReturnType<typeof and>) {
   return [...byId.values()];
 }
 
+// Steps the learner has reached: everything up to the active step (or the session's own
+// step, if that's further). Practice never uses grammar from beyond them — a sentence
+// written for a later step can share a skill (it uses *está*) but still teach ahead.
+async function reachedStepIds(userId: string, sessionStepId: string | null) {
+  const [allSteps, completed] = await Promise.all([
+    db.select({ id: steps.id, levelId: steps.levelId, position: steps.position }).from(steps),
+    db.select({ stepId: stepProgress.stepId }).from(stepProgress).where(and(eq(stepProgress.userId, userId), eq(stepProgress.status, "completed"))),
+  ]);
+  const ordered = allSteps.sort((a, b) => a.levelId - b.levelId || a.position - b.position);
+  const active = findActiveStep(ordered, new Set(completed.map((c) => c.stepId)));
+  const frontier = Math.max(
+    active ? ordered.findIndex((s) => s.id === active.id) : ordered.length - 1,
+    ordered.findIndex((s) => s.id === sessionStepId),
+  );
+  return ordered.slice(0, frontier + 1).map((s) => s.id);
+}
+
 async function planFor(userId: string, session: NonNullable<Awaited<ReturnType<typeof getOwnedSession>>>): Promise<PlannedItem[]> {
   if (session.kind === "checkpoint" && session.levelId) {
     const levelSteps = await db.select({ id: steps.id }).from(steps).where(and(eq(steps.levelId, session.levelId), eq(steps.kind, "learn")));
@@ -95,16 +113,19 @@ async function planFor(userId: string, session: NonNullable<Awaited<ReturnType<t
     .where(eq(stepSkills.stepId, session.stepId ?? ""))
     .orderBy(asc(skills.id));
   const stepSkillIds = stepSkillRows.map((s) => s.id);
+  const reached = await reachedStepIds(userId, session.stepId);
 
   const reviewRows = await db
     .select({ id: skills.id, kind: skills.kind, correctCount: skillStates.correctCount, solid: sql<boolean>`${isSolidSql}` })
     .from(skillStates)
     .innerJoin(skills, eq(skills.id, skillStates.skillId))
+    .innerJoin(stepSkills, eq(stepSkills.skillId, skills.id))
     .where(
       and(
         eq(skillStates.userId, userId),
         ne(skillStates.state, 0),
         lte(skillStates.due, sql`now()`),
+        inArray(stepSkills.stepId, reached),
         stepSkillIds.length ? notInArray(skills.id, stepSkillIds) : undefined,
       ),
     )
@@ -113,7 +134,7 @@ async function planFor(userId: string, session: NonNullable<Awaited<ReturnType<t
 
   const toPlanSkill = (r: (typeof stepSkillRows)[number]): PlanSkill => ({ id: r.id, kind: r.kind, correctCount: r.correctCount ?? 0, solid: r.solid });
   const skillIds = [...stepSkillIds, ...reviewRows.map((r) => r.id)];
-  const pool = skillIds.length ? await exercisesFor(userId, inArray(exerciseSkills.skillId, skillIds)) : [];
+  const pool = skillIds.length ? await exercisesFor(userId, and(inArray(exerciseSkills.skillId, skillIds), inArray(exercises.stepId, reached))) : [];
   return planLearnSession(stepSkillRows.map(toPlanSkill), reviewRows.map(toPlanSkill), pool);
 }
 
@@ -195,6 +216,21 @@ export async function getStepSolidCount(userId: string, stepId: string) {
       .where(and(eq(stepSkills.stepId, stepId), isSolidSql)),
   ]);
   return { solid, total };
+}
+
+// Each skill in a step, and how many more correct answers it needs to be solid.
+export async function getStepSkillProgress(userId: string, stepId: string) {
+  const rows = await db
+    .select({ id: skills.id, title: skills.title, correctCount: skillStates.correctCount, streak: skillStates.streak })
+    .from(stepSkills)
+    .innerJoin(skills, eq(skills.id, stepSkills.skillId))
+    .leftJoin(skillStates, and(eq(skillStates.skillId, skills.id), eq(skillStates.userId, userId)))
+    .where(eq(stepSkills.stepId, stepId))
+    .orderBy(asc(skills.kind), asc(skills.id));
+  return rows.map((r) => {
+    const needed = answersToSolid({ correctCount: r.correctCount ?? 0, streak: r.streak ?? 0 });
+    return { id: r.id, title: r.title, needed, solid: needed === 0 };
+  });
 }
 
 export async function getSkillTitles(skillIds: string[]) {

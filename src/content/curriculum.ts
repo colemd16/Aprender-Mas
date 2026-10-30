@@ -125,8 +125,8 @@ export const LEVELS: LevelDef[] = [
     title: "Speaking naturally",
     summary: "Commands, pronouns, and the small words that make Spanish flow.",
     steps: [
-      { id: "l9-commands", title: "Habla, no hables, hablen", concept: "commands", forms: { verbs: ["hablar", "comer"], tenses: ["imp_affirmative", "imp_negative"], persons: ["2s", "3p"] }, usage: ["usage:commands-tu-ustedes"] },
-      { id: "l9-irregular-commands", title: "Ven, haz, di, sé", concept: "commands", forms: { verbs: ["venir", "hacer", "decir", "tener", "poner", "salir", "ser", "ir"], tenses: ["imp_affirmative"], persons: ["2s"] } },
+      { id: "l9-commands", title: "Habla, no hables, hablen", concept: "commands", forms: { verbs: ["hablar", "comer"], tenses: ["imp_affirmative", "imp_negative"], persons: ["2s", "3s", "3p"] }, usage: ["usage:commands-tu-ustedes"] },
+      { id: "l9-irregular-commands", title: "Ven, haz, di, sé", concept: "commands", forms: { verbs: ["venir", "hacer", "decir", "tener", "poner", "salir", "ser", "ir"], tenses: ["imp_affirmative"], persons: ["2s", "3s"] } },
       { id: "l9-object-pronouns", title: "Lo, la, le", concept: "object-pronouns", usage: ["usage:direct-object-pronouns", "usage:indirect-object-pronouns"] },
       { id: "l9-pronoun-placement", title: "Se lo dije", concept: "object-pronouns", usage: ["usage:pronoun-placement"] },
       { id: "l9-reflexives", title: "Me levanto", concept: "reflexives", usage: ["usage:reflexive-verbs"] },

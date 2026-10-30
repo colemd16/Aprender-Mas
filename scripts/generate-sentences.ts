@@ -8,7 +8,7 @@ import { config } from "dotenv";
 config({ path: ".env.local", quiet: true });
 
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
-import { count, inArray } from "drizzle-orm";
+import { count, inArray, isNull } from "drizzle-orm";
 import { TENSES, type TenseId } from "../src/content/tenses";
 import { buildStepContexts, type StepContext } from "../src/domain/generation/context";
 import { buildFormIndex } from "../src/domain/generation/form-index";
@@ -39,8 +39,8 @@ async function main() {
 
   const [formRows, existing, perStep] = await Promise.all([
     db.select().from(s.verbForms).where(inArray(s.verbForms.infinitive, curriculumVerbs)),
-    db.select({ prompt: s.exercises.prompt }).from(s.exercises),
-    db.select({ stepId: s.exercises.stepId, n: count() }).from(s.exercises).groupBy(s.exercises.stepId),
+    db.select({ prompt: s.exercises.prompt }).from(s.exercises).where(isNull(s.exercises.retiredAt)),
+    db.select({ stepId: s.exercises.stepId, n: count() }).from(s.exercises).where(isNull(s.exercises.retiredAt)).groupBy(s.exercises.stepId),
   ]);
   const forms = buildFormIndex(formRows.map((f) => ({ ...f, tenseId: f.tenseId as TenseId })));
   const lexicon = buildAccentLexicon(formRows.flatMap((f) => [f.form, ...f.alternates]));

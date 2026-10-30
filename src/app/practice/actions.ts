@@ -13,6 +13,7 @@ import {
   getAccentMode,
   getOwnedSession,
   getSkillTitles,
+  getStepSkillProgress,
   getStepSolidCount,
   getStepTitle,
   loadFormExercise,
@@ -125,6 +126,7 @@ export async function submitAnswer(input: AnswerInput): Promise<AnswerFeedback> 
 export type SessionSummary = {
   answered: number;
   correct: number; // correct or acceptable
+  skills: { id: string; title: string; needed: number; solid: boolean }[]; // the step's skills, for learn sessions
   checkpoint: { score: number; passed: boolean; nextLevelUnlocked: boolean } | null;
 };
 
@@ -154,5 +156,6 @@ export async function finishSession(sessionId: string): Promise<SessionSummary> 
 
   if (!session.endedAt) await endSession(user.id, session.id);
   revalidatePath("/");
-  return { answered: rows.length, correct, checkpoint };
+  const skills = session.kind === "learn" && session.stepId ? await getStepSkillProgress(user.id, session.stepId) : [];
+  return { answered: rows.length, correct, checkpoint, skills };
 }

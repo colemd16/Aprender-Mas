@@ -20,7 +20,8 @@ async function Practice({ params }: { params: PageProps<"/practice/[sessionId]">
   const user = await getCurrentUser();
   const session = await getOwnedSession(user.id, sessionId);
   if (!session) notFound();
-  if (session.endedAt) redirect(session.stepId ? `/steps/${session.stepId}` : "/");
+  // A finished session's link opens its review.
+  if (session.endedAt) redirect(`/sessions/${session.id}`);
 
   const [items, progress] = await Promise.all([
     getSessionPlan(user.id, session),

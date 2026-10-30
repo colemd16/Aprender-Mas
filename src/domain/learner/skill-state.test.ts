@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { Rating, State } from "ts-fsrs";
 import type { GradeResult } from "@/domain/grading/types";
-import { applyRating, isDue, isSolid, isStepComplete, ratingsFor, type SkillState } from "./skill-state";
+import { answersToSolid, applyRating, isDue, isSolid, isStepComplete, ratingsFor, type SkillState } from "./skill-state";
 
 const t0 = new Date("2026-10-20T12:00:00Z");
 const minutes = (n: number) => new Date(t0.getTime() + n * 60_000);
@@ -62,6 +62,13 @@ test("ratings come from each skill's result and its notes", () => {
     ],
   };
   assert.deepEqual([...ratingsFor(result)], [["a", Rating.Again], ["b", Rating.Hard], ["c", Rating.Good]]);
+});
+
+test("answers to solid counts what's still needed", () => {
+  assert.equal(answersToSolid(undefined), 3);
+  assert.equal(answersToSolid({ correctCount: 2, streak: 2 }), 1);
+  assert.equal(answersToSolid({ correctCount: 5, streak: 0 }), 2); // missed last time: two in a row again
+  assert.equal(answersToSolid({ correctCount: 4, streak: 3 }), 0);
 });
 
 test("a step is complete only when every one of its skills is solid", () => {

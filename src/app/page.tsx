@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Suspense } from "react";
 import { LevelTrack } from "@/components/journey/level-track";
 import { StepCard } from "@/components/journey/step-card";
@@ -8,21 +9,23 @@ import { getJourney } from "@/data/journey";
 import { getCurrentUser } from "@/lib/auth";
 import { signOut } from "./login/actions";
 
-export default function JourneyPage() {
+export default function JourneyPage({ searchParams }: PageProps<"/">) {
   return (
     <div className="spotlight flex min-h-screen flex-col">
       <Suspense fallback={<JourneySkeleton />}>
-        <Journey />
+        <Journey searchParams={searchParams} />
       </Suspense>
     </div>
   );
 }
 
-async function Journey() {
+async function Journey({ searchParams }: { searchParams: PageProps<"/">["searchParams"] }) {
+  const { level } = await searchParams;
   const user = await getCurrentUser();
-  const journey = await getJourney(user.id);
-  const { currentLevel, steps, activeStep } = journey;
+  const journey = await getJourney(user.id, Number(level) || undefined);
+  const { currentLevel, viewedLevel, steps, activeStep } = journey;
   const learnSteps = steps.filter((s) => s.kind === "learn").length;
+  const pastLevel = viewedLevel.id !== currentLevel.id;
 
   return (
     <>
@@ -34,7 +37,7 @@ async function Journey() {
               <span className="font-semibold text-fg">{journey.solidSkills}</span> of {journey.totalSkills} skills solid
             </span>
           </Pill>
-          {journey.reviewsDue > 0 && <Pill tone="warn">{journey.reviewsDue} reviews due</Pill>}
+          {journey.reviewsDue > 0 && <Pill tone="note">{journey.reviewsDue} reviews due</Pill>}
           <form action={signOut}>
             <Button type="submit" variant="ghost" className="h-9 px-3 text-[13px] font-medium">
               Sign out
@@ -44,21 +47,38 @@ async function Journey() {
       </header>
 
       <main className="mx-auto flex w-full max-w-[1120px] flex-col gap-7 px-5 pt-4 pb-12 sm:gap-10 sm:px-8 sm:pt-6">
-        <LevelTrack levels={journey.levels} />
+        <LevelTrack levels={journey.levels} viewedId={viewedLevel.id} />
 
-        <div className="flex animate-rise flex-col gap-2.5">
+        <div key={viewedLevel.id} className="flex animate-rise flex-col gap-2.5">
           <span className="font-mono text-xs tracking-[0.06em] text-fg-muted">
-            LEVEL {currentLevel.id}
+            LEVEL {viewedLevel.id}
+            {pastLevel && " · COMPLETE"}
             {activeStep?.kind === "learn" && ` · STEP ${activeStep.position} OF ${learnSteps}`}
             {activeStep?.kind === "checkpoint" && " · CHECKPOINT"}
           </span>
-          <h1 className="m-0 text-[38px] leading-[1.05] font-semibold tracking-[-0.04em] sm:text-[52px]">{currentLevel.title}</h1>
-          <p className="m-0 text-base text-fg-muted">{currentLevel.summary}</p>
+          <h1 className="m-0 text-[38px] leading-[1.05] font-semibold tracking-[-0.04em] sm:text-[52px]">{viewedLevel.title}</h1>
+          <p className="m-0 text-base text-fg-muted">
+            {viewedLevel.summary}
+            {pastLevel && (
+              <>
+                {" "}
+                <Link href="/" className="text-accent no-underline hover:text-accent-bright">
+                  Back to Level {currentLevel.id} →
+                </Link>
+              </>
+            )}
+          </p>
         </div>
 
-        <ol className="m-0 grid list-none grid-cols-[repeat(auto-fit,minmax(230px,1fr))] gap-3 p-0">
+        <ol key={`steps-${viewedLevel.id}`} className="m-0 grid list-none grid-cols-[repeat(auto-fit,minmax(230px,1fr))] gap-3 p-0">
           {steps.map((step, i) => (
-            <StepCard key={step.id} step={step} index={i} solid={step.state === "active" ? journey.activeStepSolid : 0} />
+            <StepCard
+              key={step.id}
+              step={step}
+              index={i}
+              solid={step.state === "active" ? journey.activeStepSolid : 0}
+              sessions={journey.sessionsByStep[step.id] ?? 0}
+            />
           ))}
         </ol>
       </main>

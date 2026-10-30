@@ -1,23 +1,23 @@
 import { startPractice, type SessionSummary } from "@/app/practice/actions";
 import { Button, ButtonLink } from "@/components/ui/button";
-import { ProgressBar } from "@/components/ui/progress-bar";
 import { ProgressRing } from "@/components/ui/progress-ring";
 import { Wordmark } from "@/components/ui/wordmark";
+import { SkillProgress } from "@/components/steps/skill-progress";
 import { CHECKPOINT_PASS } from "@/domain/progress/rules";
 
 type Props = {
+  sessionId: string;
   summary: SessionSummary;
   kind: "learn" | "review" | "checkpoint";
   stepId: string | null;
   stepTitle: string;
   levelId: number | null;
-  progress: { solid: number; total: number } | null;
 };
 
-export function SessionSummaryView({ summary, kind, stepId, stepTitle, levelId, progress }: Props) {
+export function SessionSummaryView({ sessionId, summary, kind, stepId, stepTitle, levelId }: Props) {
   const share = summary.answered ? summary.correct / summary.answered : 0;
   const cp = summary.checkpoint;
-  const ringColor = cp ? (cp.passed ? "var(--color-ok)" : "var(--color-warn)") : "var(--color-ok)";
+  const ringColor = cp ? (cp.passed ? "var(--color-ok)" : "var(--color-note)") : "var(--color-ok)";
   const value = cp ? cp.score : share;
 
   return (
@@ -39,7 +39,7 @@ export function SessionSummaryView({ summary, kind, stepId, stepTitle, levelId, 
           <div className="flex min-w-0 animate-rise flex-col gap-2.5 [animation-delay:300ms]">
             {cp ? (
               <>
-                <span className={`self-start rounded-full px-3 py-1.5 text-[13px] font-semibold ${cp.passed ? "bg-ok/12 text-ok" : "bg-warn/12 text-warn"}`}>
+                <span className={`self-start rounded-full px-3 py-1.5 text-[13px] font-semibold ${cp.passed ? "bg-ok/12 text-ok" : "bg-note/12 text-note"}`}>
                   {cp.passed ? "Checkpoint passed" : "Not yet"}
                 </span>
                 <h1 className="m-0 text-[40px] leading-[1.05] font-semibold tracking-[-0.04em]">{cp.passed ? `Level ${levelId} complete` : `Level ${levelId} checkpoint`}</h1>
@@ -63,22 +63,17 @@ export function SessionSummaryView({ summary, kind, stepId, stepTitle, levelId, 
           </div>
         </div>
 
-        {progress && kind === "learn" && (
-          <div className="glass-subtle flex animate-rise flex-col gap-3 rounded-[20px] p-[22px] [animation-delay:450ms]">
-            <div className="flex items-center justify-between text-sm">
-              <span className="font-semibold">Skills solid in this step</span>
-              <span className="font-mono text-fg-soft">
-                {progress.solid}/{progress.total}
-              </span>
-            </div>
-            <ProgressBar value={progress.total ? progress.solid / progress.total : 0} label="Skills solid in this step" />
-          </div>
-        )}
+        {kind === "learn" && summary.skills.length > 0 && <SkillProgress skills={summary.skills} className="animate-rise [animation-delay:450ms]" />}
 
         <div className="flex animate-rise flex-wrap gap-3 [animation-delay:550ms]">
           <ButtonLink href="/" variant="primary" size="lg">
             Back to journey <span aria-hidden="true">→</span>
           </ButtonLink>
+          {summary.answered > 0 && (
+            <ButtonLink href={`/sessions/${sessionId}`} variant="secondary" size="lg">
+              Review answers
+            </ButtonLink>
+          )}
           {stepId && !(cp?.passed) && (
             <form action={startPractice.bind(null, stepId)}>
               <Button type="submit" variant="secondary" size="lg">

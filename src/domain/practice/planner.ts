@@ -4,6 +4,11 @@ import { SOLID_MIN_CORRECT } from "@/domain/progress/rules";
 // learner's skill states and the available exercises.
 
 export const SESSION_SIZE = 20;
+// A session stretches up to this size when that lets it finish the step.
+export const SESSION_STRETCH = 25;
+// …and is topped up to at least this many with the step's other skills, so a session
+// that only needs one more answer still feels like practice.
+export const SESSION_MINIMUM = 8;
 export const CHECKPOINT_SIZE_DEFAULT = 15;
 const REVIEW_SHARE = 0.3;
 
@@ -93,13 +98,16 @@ export function planLearnSession(
 
   const targets = stepSkills.some((s) => !s.solid) ? stepSkills.filter((s) => !s.solid) : stepSkills;
   const reviewSlots = Math.min(reviewSkills.length, Math.round(size * REVIEW_SHARE));
-  const learnSlots = size - reviewSlots;
 
   // Each target gets as many turns as it still needs, in order (a drill before the form
   // shows up in a sentence)…
   const sequences = targets.map((skill) =>
     Array.from({ length: Math.max(1, SOLID_MIN_CORRECT - skill.correctCount) }, (_, nth) => itemFor(skill, nth)).filter((i): i is PlannedItem => i !== null),
   );
+  // If everything still needed fits in a slightly longer session, the session stretches
+  // so the step can be finished in one go…
+  const needed = sequences.reduce((n, s) => n + s.length, 0);
+  const learnSlots = needed + reviewSlots <= Math.max(size, SESSION_STRETCH) ? Math.max(needed, size - reviewSlots) : size - reviewSlots;
   // …and when that's more than a session holds, fewer skills are practiced fully rather
   // than every skill once — so skills actually become solid. The rest come next time…
   const kept: PlannedItem[][] = [];
@@ -110,7 +118,17 @@ export function planLearnSession(
     kept.push(take);
     count += take.length;
   }
-  // …then woven together so skills and kinds of question alternate.
+  // A short session gets extra turns from the step's other skills (sentences first)…
+  const total = () => kept.reduce((n, s) => n + s.length, 0) + reviewSlots;
+  const extras = shuffle(stepSkills.filter((s) => !targets.includes(s)), rng);
+  for (let round = 0; total() < SESSION_MINIMUM && extras.length && round < SOLID_MIN_CORRECT; round++) {
+    for (const skill of extras) {
+      if (total() >= SESSION_MINIMUM) break;
+      const item = itemFor(skill, round + 1);
+      if (item) kept.push([item]);
+    }
+  }
+  // …then everything is woven together so skills and kinds of question alternate.
   const learn = weave(kept, rng);
 
   const reviews = reviewSkills

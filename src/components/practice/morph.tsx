@@ -9,7 +9,7 @@ const opClass: Record<DiffOp["op"], string> = {
   same: "",
   delete: "animate-morph-delete overflow-hidden",
   insert: "animate-morph-insert overflow-hidden text-accent",
-  accent: "animate-morph-accent text-warn",
+  accent: "animate-morph-accent text-note",
 };
 
 // How long the morph takes, so what follows can wait for it.
