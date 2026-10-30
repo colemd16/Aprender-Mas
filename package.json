@@ -14,7 +14,8 @@
     "test": "tsx --test 'src/**/*.test.ts'",
     "eval:grading": "tsx scripts/eval-grading.ts",
     "generate:sentences": "tsx scripts/generate-sentences.ts",
-    "review:sentences": "tsx scripts/review-sentences.ts"
+    "review:sentences": "tsx scripts/review-sentences.ts",
+    "deploy": "bash scripts/deploy.sh"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.136.0",
