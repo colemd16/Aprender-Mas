@@ -66,7 +66,7 @@ export function FollowUps({ attemptId }: { attemptId: string }) {
       {exchanges.map((e, i) => (
         <div key={i} className="flex animate-pop flex-col gap-3">
           <p className="m-0 self-end rounded-2xl rounded-br-md bg-accent/12 px-4 py-2.5 text-[15px] text-accent-bright">{e.question}</p>
-          <div className="glass-subtle rounded-[18px] px-5 py-4" aria-live="polite" aria-busy={e.streaming}>
+          <div className="glass-subtle rounded-[18px] p-4 sm:px-5" aria-live="polite" aria-busy={e.streaming}>
             {e.answer ? (
               <Explanation text={e.answer} />
             ) : (
@@ -101,6 +101,7 @@ export function FollowUps({ attemptId }: { attemptId: string }) {
             maxLength={MAX_QUESTION_LENGTH}
             disabled={streaming}
             onChange={(e) => setQuestion(e.target.value.replace(/\s*\n\s*/g, " "))}
+            enterKeyHint="send"
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.nativeEvent.isComposing) {
                 e.preventDefault();
@@ -117,7 +118,17 @@ export function FollowUps({ attemptId }: { attemptId: string }) {
             aria-label="Ask"
             className="flex size-10 flex-none cursor-pointer items-center justify-center rounded-xl bg-accent/15 text-accent-bright transition-[transform,background] duration-200 ease-spring hover:-translate-y-px hover:bg-accent/25 disabled:cursor-default disabled:opacity-40 disabled:hover:translate-y-0"
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
               <path d="M5 12h14M13 6l6 6-6 6" />
             </svg>
           </button>

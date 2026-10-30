@@ -9,7 +9,7 @@ export function SkillProgress({ skills, className }: { skills: SkillProgressItem
   const left = skills.filter((s) => !s.solid);
 
   return (
-    <section aria-label="Progress in this step" className={`glass-subtle flex flex-col gap-3.5 rounded-[20px] p-[22px] ${className ?? ""}`}>
+    <section aria-label="Progress in this step" className={`glass-subtle flex flex-col gap-3.5 rounded-[20px] p-5 sm:p-[22px] ${className ?? ""}`}>
       <div className="flex items-baseline justify-between gap-3">
         <h2 className="m-0 text-sm font-semibold">{left.length ? `${left.length} skill${left.length === 1 ? "" : "s"} left` : "Every skill is solid"}</h2>
         <span className="font-mono text-xs text-fg-muted">
@@ -28,7 +28,8 @@ export function SkillProgress({ skills, className }: { skills: SkillProgressItem
                 </span>
               </span>
               <span className="flex-none text-[13px] text-fg-muted">
-                {s.needed} more correct{s.needed > 1 ? " in a row" : ""}
+                {s.needed} more<span className="hidden min-[400px]:inline"> correct</span>
+                {s.needed > 1 ? " in a row" : ""}
               </span>
             </li>
           ))}

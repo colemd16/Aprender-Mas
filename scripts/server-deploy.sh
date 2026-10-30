@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Runs ON THE SERVER (client-sites-vm). Deploys a code archive made by scripts/deploy.sh:
-#   bash server-deploy.sh /tmp/aprender-mas-<commit>.tar.gz [--simulate-failure]
+# Runs ON THE SERVER (client-sites-vm). Deploys the commit scripts/deploy.sh fetched from
+# GitHub into ~/aprender-mas-incoming:
+#   bash server-deploy.sh <commit> [--simulate-failure]
 #
 # Steps: check memory → stop the app → swap in the new code (keeping the old code and
 # build for rollback) → npm ci if dependencies changed → migrations if they changed →
@@ -9,7 +10,7 @@
 # Database migrations are forward-only and are not rolled back.
 set -euo pipefail
 
-ARCHIVE="${1:?usage: server-deploy.sh <archive.tar.gz> [--simulate-failure]}"
+NEW_COMMIT="${1:?usage: server-deploy.sh <commit> [--simulate-failure]}"
 SIMULATE_FAILURE="${2:-}"
 APP=/home/serversam/aprender-mas
 INCOMING=/home/serversam/aprender-mas-incoming
@@ -24,16 +25,15 @@ avail_mb() { awk '/MemAvailable/ {print int($2/1024)}' /proc/meminfo; }
 source ~/.nvm/nvm.sh >/dev/null
 
 # Keep everything out of the code sync that isn't code.
-SYNC_EXCLUDES=(--exclude node_modules --exclude .next --exclude .next-prev --exclude .env.local --exclude .deployed-commit)
+SYNC_EXCLUDES=(--exclude .git --exclude node_modules --exclude .next --exclude .next-prev --exclude .env.local --exclude .deployed-commit)
 
 if [ "$(avail_mb)" -lt "$NEED_MB" ]; then
   log "Only $(avail_mb) MB of memory available (need $NEED_MB). The other sites come first — try again when it's quieter."
+  rm -rf "$INCOMING"
   exit 1
 fi
 
-rm -rf "$INCOMING" && mkdir -p "$INCOMING"
-tar -xzf "$ARCHIVE" -C "$INCOMING"
-NEW_COMMIT=$(cat "$INCOMING/.archive-commit" 2>/dev/null || echo unknown)
+[[ "$(git -C "$INCOMING" rev-parse HEAD 2>/dev/null)" == "$NEW_COMMIT"* ]] || { log "$INCOMING doesn't hold $NEW_COMMIT"; exit 1; }
 OLD_COMMIT=$(cat "$APP/.deployed-commit" 2>/dev/null || echo unknown)
 log "Deploying $NEW_COMMIT (live: $OLD_COMMIT)"
 

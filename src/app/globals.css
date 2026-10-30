@@ -164,6 +164,22 @@ body {
   padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
 
+/* Rows that scroll sideways with a swipe, without a scrollbar showing. */
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* While typing on a phone the keyboard owns the bottom of the screen: tuck the pinned
+   action away instead of letting it float over the keys. */
+@media (pointer: coarse) {
+  body:has(textarea:focus, input:focus) [data-dock] {
+    display: none;
+  }
+}
+
 /* Taps are taps: no double-tap zoom delay, no press-and-hold menu, no stray text selection. */
 a,
 button,

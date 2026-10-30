@@ -12,7 +12,11 @@ export type SessionRow = Omit<SessionListItem, "startedAt" | "lastAnswerAt"> & {
 // Sessions as rows that open their review. Dates are shown in the viewer's own time
 // zone — so this renders in the browser, after the page arrives.
 export function SessionList({ sessions }: { sessions: SessionRow[] }) {
-  const ready = useSyncExternalStore(subscribe, () => true, () => false);
+  const ready = useSyncExternalStore(
+    subscribe,
+    () => true,
+    () => false,
+  );
   if (!ready) return <div aria-busy="true" className="h-[72px] animate-pulse rounded-[18px] bg-white/[0.03]" />;
   return (
     <ul className="m-0 flex list-none flex-col gap-2 p-0">
@@ -33,7 +37,7 @@ function SessionRowLink({ session: s }: { session: SessionRow }) {
   return (
     <Link
       href={`/sessions/${s.id}`}
-      className="glass-subtle flex items-center gap-4 rounded-[18px] px-5 py-4 text-fg no-underline transition-[transform,border-color] duration-200 ease-spring hover:-translate-y-0.5 hover:border-white/16 active:scale-[0.98]"
+      className="glass-subtle flex items-center gap-3.5 rounded-[18px] p-4 text-fg sm:gap-4 sm:px-5 no-underline transition-[transform,border-color] duration-200 ease-spring hover:-translate-y-0.5 hover:border-white/16 active:scale-[0.98]"
     >
       <ProgressRing value={share} size={36} stroke={4} color={share >= 0.85 ? "var(--color-ok)" : "var(--color-accent)"} />
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">

@@ -6,7 +6,9 @@ import { finishSession, submitAnswer, type AnswerFeedback, type SessionSummary }
 import type { PracticeItem } from "@/data/practice";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
+import { Dock } from "@/components/ui/dock";
 import { Dot, Pill } from "@/components/ui/pill";
+import { ProgressBar } from "@/components/ui/progress-bar";
 import { ProgressRing } from "@/components/ui/progress-ring";
 import { Spinner } from "@/components/ui/spinner";
 import { Wordmark } from "@/components/ui/wordmark";
@@ -17,7 +19,12 @@ import { SessionSummaryView } from "./session-summary";
 import { useSpeech } from "./use-speech";
 
 type Feedback = Extract<AnswerFeedback, { ok: true }>;
-type Phase = { name: "answering"; error?: string } | { name: "grading" } | { name: "feedback"; feedback: Feedback } | { name: "finishing" } | { name: "done"; summary: SessionSummary };
+type Phase =
+  | { name: "answering"; error?: string }
+  | { name: "grading" }
+  | { name: "feedback"; feedback: Feedback }
+  | { name: "finishing" }
+  | { name: "done"; summary: SessionSummary };
 
 const RETRY_AFTER = 3; // a missed item comes back this many questions later
 
@@ -43,6 +50,7 @@ export function PracticeSession({ sessionId, kind, stepId, stepTitle, levelId, i
   const [, startTransition] = useTransition();
   const shownAt = useRef(0);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const keyboardRef = useRef<HTMLInputElement>(null);
 
   // The answer box grows with what's typed (or spoken), and shrinks back for the next question.
   useLayoutEffect(() => {
@@ -65,6 +73,8 @@ export function PracticeSession({ sessionId, kind, stepId, stepTitle, levelId, i
   function submit() {
     if (!item || !answer.trim() || phase.name !== "answering") return;
     speech.stop();
+    // Drop the phone keyboard so the correction has the whole screen.
+    inputRef.current?.blur();
     setPhase({ name: "grading" });
     const responseMs = shownAt.current ? Date.now() - shownAt.current : 0;
     startTransition(async () => {
@@ -98,11 +108,15 @@ export function PracticeSession({ sessionId, kind, stepId, stepTitle, levelId, i
   function next() {
     setSolidNotes([]);
     if (isLast) return finish();
+    // Phones only open the keyboard for focus that happens during the tap itself, and the
+    // answer box doesn't exist yet: focus a stand-in now, then hand focus to the real box.
+    keyboardRef.current?.focus({ preventScroll: true });
     setIndex((i) => i + 1);
     setAnswer("");
     setSpoken(false);
     setPhase({ name: "answering" });
     shownAt.current = Date.now();
+    window.scrollTo({ top: 0 });
     requestAnimationFrame(() => inputRef.current?.focus());
   }
 
@@ -116,10 +130,40 @@ export function PracticeSession({ sessionId, kind, stepId, stepTitle, levelId, i
   }
 
   const answered = index + (phase.name === "feedback" ? 1 : 0);
+  const busy = phase.name === "grading" || phase.name === "finishing";
+  const where =
+    kind === "checkpoint" ? (
+      `Level ${levelId} checkpoint`
+    ) : (
+      <span lang="es" className="text-fg">
+        {stepTitle}
+      </span>
+    );
 
   return (
     <div className="flex min-h-app flex-col bg-[radial-gradient(900px_420px_at_50%_36%,rgb(252_209_22/0.07),transparent_70%),radial-gradient(1000px_520px_at_85%_-10%,rgb(0_56_147/0.45),transparent_70%)]">
-      <header className="flex flex-wrap items-center justify-between gap-4 px-5 py-4 sm:px-8 sm:py-5">
+      <input ref={keyboardRef} aria-hidden="true" tabIndex={-1} className="pointer-events-none fixed top-0 left-0 size-px text-base opacity-0" />
+
+      {/* Phones: one slim bar — end, how far through, how many. */}
+      <header className="sticky top-[calc(env(safe-area-inset-top)+3px)] z-40 flex items-center gap-2 bg-night/70 py-2 pr-4 pl-2 backdrop-blur-xl sm:hidden">
+        <button
+          type="button"
+          onClick={finish}
+          disabled={busy}
+          aria-label="End session"
+          className="flex size-10 flex-none cursor-pointer items-center justify-center rounded-full text-fg-soft transition-[transform,color] duration-200 ease-spring active:scale-90 active:text-fg disabled:opacity-40"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
+            <path d="M6 6l12 12M18 6L6 18" />
+          </svg>
+        </button>
+        <ProgressBar value={answered / Math.max(1, queue.length)} label="Questions answered" className="flex-1" />
+        <span className="min-w-11 flex-none text-right font-mono text-xs text-fg-muted">
+          {Math.min(answered, queue.length)}/{queue.length}
+        </span>
+      </header>
+
+      <header className="hidden flex-wrap items-center justify-between gap-4 px-8 py-5 sm:flex">
         <Wordmark />
         <div className="flex items-center gap-2.5 rounded-full border border-white/[0.08] bg-white/[0.04] py-1.5 pr-3.5 pl-2 text-[13px] text-fg-soft">
           {progress ? (
@@ -127,9 +171,7 @@ export function PracticeSession({ sessionId, kind, stepId, stepTitle, levelId, i
           ) : (
             <Dot className="text-accent" />
           )}
-          <span>
-            {kind === "checkpoint" ? `Level ${levelId} checkpoint` : <span lang="es" className="text-fg">{stepTitle}</span>}
-          </span>
+          <span>{where}</span>
           {progress && (
             <span className="text-fg-muted">
               {progress.solid}/{progress.total}
@@ -141,30 +183,58 @@ export function PracticeSession({ sessionId, kind, stepId, stepTitle, levelId, i
             {Math.min(answered, queue.length)} / {queue.length}
           </span>
           <div className="h-1 w-24 overflow-hidden rounded-full bg-white/[0.08]">
-            <div className="h-full rounded-full bg-accent transition-[width] duration-500 ease-out-expo" style={{ width: `${(answered / Math.max(1, queue.length)) * 100}%` }} />
+            <div
+              className="h-full rounded-full bg-accent transition-[width] duration-500 ease-out-expo"
+              style={{ width: `${(answered / Math.max(1, queue.length)) * 100}%` }}
+            />
           </div>
-          <Button variant="ghost" className="h-9 px-3 text-[13px] font-medium" onClick={finish} disabled={phase.name === "grading" || phase.name === "finishing"}>
+          <Button variant="ghost" className="h-9 px-3 text-[13px] font-medium" onClick={finish} disabled={busy}>
             End
           </Button>
         </div>
       </header>
 
-      <main className="mx-auto flex w-full max-w-[840px] flex-1 flex-col justify-center gap-8 px-5 py-8 sm:px-8 sm:py-10">
+      {/* On phones the question sits at the top with the answer right under it, so both
+          stay in view above the keyboard. */}
+      <main className="mx-auto flex w-full max-w-[840px] flex-1 flex-col gap-6 px-4 pt-3 pb-32 sm:justify-center sm:gap-8 sm:px-8 sm:py-10">
         {!item ? (
           <EmptySession />
         ) : (
           <>
+            <div className="flex min-w-0 items-center gap-2 text-[13px] text-fg-muted sm:hidden">
+              {progress ? (
+                <ProgressRing
+                  value={progress.total ? progress.solid / progress.total : 0}
+                  size={16}
+                  stroke={3}
+                  label={`${progress.solid} of ${progress.total} skills solid`}
+                />
+              ) : (
+                <Dot className="text-accent" />
+              )}
+              <span className="min-w-0 truncate">{where}</span>
+              {progress && (
+                <span className="flex-none">
+                  · {progress.solid}/{progress.total} solid
+                </span>
+              )}
+            </div>
+
             <Prompt key={item.key} item={item} />
 
-            <div className="glass rounded-[22px] p-4 sm:py-[22px] sm:pr-[22px] sm:pl-7">
+            <div className={cn("glass rounded-[22px] sm:py-[22px] sm:pr-[22px] sm:pl-7", phase.name === "feedback" ? "p-4" : "py-2 pr-2 pl-4")}>
               {phase.name === "feedback" ? (
-                <div className="flex flex-wrap items-center justify-between gap-4">
-                  <Morph ops={phase.feedback.diff} corrected={phase.feedback.corrected} className="text-[30px] leading-tight font-medium tracking-[-0.02em] sm:text-[40px]" />
+                <div className="flex flex-wrap items-center justify-between gap-3 sm:gap-4">
+                  <Morph
+                    ops={phase.feedback.diff}
+                    corrected={phase.feedback.corrected}
+                    className="text-[24px] leading-tight font-medium tracking-[-0.02em] sm:text-[40px]"
+                  />
                   <VerdictPill feedback={phase.feedback} />
                 </div>
               ) : (
                 <form
-                  className="flex flex-wrap items-end gap-3 sm:flex-nowrap"
+                  className="flex items-end gap-2 sm:gap-3"
                   onSubmit={(e) => {
                     e.preventDefault();
                     submit();
@@ -181,7 +251,9 @@ export function PracticeSession({ sessionId, kind, stepId, stepTitle, levelId, i
                     autoFocus
                     autoComplete="off"
                     autoCapitalize="none"
+                    autoCorrect="off"
                     spellCheck={false}
+                    enterKeyHint="go"
                     value={answer}
                     onChange={(e) => {
                       // One line of thought: pasted line breaks become spaces.
@@ -197,7 +269,7 @@ export function PracticeSession({ sessionId, kind, stepId, stepTitle, levelId, i
                     }}
                     readOnly={phase.name === "grading"}
                     placeholder={speech.listening ? "Escuchando…" : "Escribe en español…"}
-                    className="block w-full min-w-0 flex-1 basis-full resize-none overflow-hidden bg-transparent py-1.5 text-[28px] leading-[1.2] font-medium tracking-[-0.02em] text-fg outline-none placeholder:text-fg-faint sm:basis-auto sm:text-[36px]"
+                    className="block min-w-0 flex-1 resize-none overflow-hidden bg-transparent py-2 text-[22px] leading-[1.25] font-medium tracking-[-0.02em] text-fg outline-none placeholder:text-fg-faint sm:py-1.5 sm:text-[36px] sm:leading-[1.2]"
                   />
                   {speech.supported && (
                     <button
@@ -206,45 +278,73 @@ export function PracticeSession({ sessionId, kind, stepId, stepTitle, levelId, i
                       aria-label={speech.listening ? "Stop listening" : "Speak your answer"}
                       aria-pressed={speech.listening}
                       className={cn(
-                        "flex size-[52px] flex-none cursor-pointer items-center justify-center rounded-2xl border transition-[transform,background] duration-200 ease-spring hover:-translate-y-px",
+                        "flex size-11 flex-none cursor-pointer items-center justify-center rounded-[14px] border transition-[transform,background] duration-200 ease-spring hover:-translate-y-px active:scale-[0.94] sm:size-[52px] sm:rounded-2xl",
                         speech.listening ? "border-accent bg-accent/15 text-accent-bright animate-glow-pulse" : "border-white/10 bg-white/5 text-fg",
                       )}
                     >
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+                      <svg
+                        width="20"
+                        height="20"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                        aria-hidden="true"
+                      >
                         <rect x="9" y="3" width="6" height="12" rx="3" />
                         <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
                       </svg>
                     </button>
                   )}
-                  <Button type="submit" size="lg" disabled={!answer.trim() || phase.name === "grading"} className="flex-1 sm:flex-none">
+                  {/* A round send button on phones (like a message composer); "Check ↵" on larger screens. */}
+                  <button
+                    type="submit"
+                    aria-label="Check answer"
+                    disabled={!answer.trim() || phase.name === "grading"}
+                    className="glow-accent inline-flex size-11 flex-none cursor-pointer items-center justify-center gap-2.5 rounded-[14px] bg-accent text-base font-semibold text-night transition-[transform,filter,opacity] duration-200 ease-spring hover:-translate-y-px hover:brightness-110 active:scale-[0.94] disabled:cursor-default disabled:opacity-40 disabled:shadow-none disabled:hover:translate-y-0 sm:h-[52px] sm:w-auto sm:rounded-2xl sm:px-6 sm:disabled:opacity-60"
+                  >
                     {phase.name === "grading" ? (
                       <>
-                        <Spinner /> Checking
+                        <Spinner /> <span className="hidden sm:inline">Checking</span>
                       </>
                     ) : (
                       <>
-                        Check <kbd className="rounded-md bg-night/15 px-1.5 py-0.5 font-mono text-xs">↵</kbd>
+                        <svg
+                          width="20"
+                          height="20"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2.4"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          aria-hidden="true"
+                          className="sm:hidden"
+                        >
+                          <path d="M12 19V5M5 12l7-7 7 7" />
+                        </svg>
+                        <span className="hidden sm:inline">Check</span>
+                        <kbd className="hidden rounded-md bg-night/15 px-1.5 py-0.5 font-mono text-xs sm:inline">↵</kbd>
                       </>
                     )}
-                  </Button>
+                  </button>
                 </form>
               )}
             </div>
 
+            {stepDone && phase.name === "feedback" && <StepComplete done={stepDone} onDismiss={() => setStepDone(null)} />}
+
             {phase.name === "answering" && (phase.error || speech.error) && (
-              <p role="alert" className="m-0 -mt-4 flex items-center gap-2.5 text-sm text-bad-soft">
+              <p role="alert" className="m-0 -mt-3 flex items-center gap-2.5 text-sm text-bad-soft sm:-mt-4">
                 <Dot className="text-bad" />
                 {phase.error ?? speech.error}
               </p>
             )}
 
-            {phase.name === "feedback" && (
-              <FeedbackDetails feedback={phase.feedback} solidNotes={solidNotes} isLast={isLast} onNext={next} />
-            )}
+            {phase.name === "feedback" && <FeedbackDetails feedback={phase.feedback} solidNotes={solidNotes} isLast={isLast} onNext={next} />}
           </>
         )}
-
-        {stepDone && phase.name === "feedback" && <StepComplete done={stepDone} onDismiss={() => setStepDone(null)} />}
       </main>
 
       <footer className="hidden justify-center gap-6 px-8 pt-4 pb-6 font-mono text-xs text-fg-subtle sm:flex">
@@ -259,25 +359,25 @@ export function PracticeSession({ sessionId, kind, stepId, stepTitle, levelId, i
 function Prompt({ item }: { item: PracticeItem }) {
   if (item.kind === "form") {
     return (
-      <div className="flex animate-rise flex-col items-start gap-4">
+      <div className="flex animate-rise flex-col items-start gap-3 sm:gap-4">
         <div className="flex flex-wrap gap-2">
           <Pill tone="accent">{item.tense}</Pill>
           <Pill>
             <span lang="es">{item.person}</span>
           </Pill>
         </div>
-        <h1 className="m-0 flex flex-wrap items-baseline gap-x-4 text-[44px] leading-none font-semibold tracking-[-0.04em] sm:text-[64px]">
+        <h1 className="m-0 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[40px] leading-none font-semibold tracking-[-0.04em] sm:gap-x-4 sm:text-[64px]">
           <span lang="es">{item.infinitive}</span>
-          <span className="text-xl font-normal tracking-normal text-fg-muted">{item.verbEnglish}</span>
+          <span className="text-base font-normal tracking-normal text-fg-muted sm:text-xl">{item.verbEnglish}</span>
         </h1>
       </div>
     );
   }
   const hints = Object.entries(item.hints);
   return (
-    <div className="flex animate-rise flex-col items-start gap-4">
+    <div className="flex animate-rise flex-col items-start gap-3 sm:gap-4">
       <Pill>Say it in Spanish</Pill>
-      <h1 className="m-0 text-[34px] leading-[1.1] font-semibold tracking-[-0.035em] sm:text-[52px]">{item.prompt}</h1>
+      <h1 className="m-0 text-[26px] leading-[1.15] font-semibold tracking-[-0.03em] sm:text-[52px] sm:leading-[1.1] sm:tracking-[-0.035em]">{item.prompt}</h1>
       {hints.length > 0 && (
         <p className="m-0 flex flex-wrap gap-x-4 gap-y-1 font-mono text-[13px] text-fg-muted">
           {hints.map(([en, es]) => (
@@ -316,7 +416,11 @@ function FeedbackDetails({ feedback, solidNotes, isLast, onNext }: { feedback: F
       {(feedback.errors.length > 0 || feedback.tip) && (
         <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-3">
           {feedback.errors.map((e, i) => (
-            <div key={i} className="glass-subtle flex animate-pop flex-col gap-2 rounded-[18px] px-5 py-[18px]" style={{ animationDelay: `${base + i * 90}ms` }}>
+            <div
+              key={i}
+              className="glass-subtle flex animate-pop flex-col gap-2 rounded-[18px] p-4 sm:px-5 sm:py-[18px]"
+              style={{ animationDelay: `${base + i * 90}ms` }}
+            >
               <span className={cn("flex items-center gap-2 text-[13px] font-semibold", e.counts ? "text-bad" : "text-note")}>
                 <Dot className={e.counts ? "text-bad" : "text-note"} />
                 {e.label}
@@ -325,7 +429,10 @@ function FeedbackDetails({ feedback, solidNotes, isLast, onNext }: { feedback: F
             </div>
           ))}
           {feedback.tip && (
-            <div className="glass-subtle flex animate-pop flex-col gap-2 rounded-[18px] px-5 py-[18px]" style={{ animationDelay: `${base + feedback.errors.length * 90}ms` }}>
+            <div
+              className="glass-subtle flex animate-pop flex-col gap-2 rounded-[18px] p-4 sm:px-5 sm:py-[18px]"
+              style={{ animationDelay: `${base + feedback.errors.length * 90}ms` }}
+            >
               <span className="flex items-center gap-2 text-[13px] font-semibold text-accent">
                 <Dot className="text-accent" />
                 Tip
@@ -350,17 +457,23 @@ function FeedbackDetails({ feedback, solidNotes, isLast, onNext }: { feedback: F
         </div>
       )}
 
-      <div className="flex animate-pop flex-wrap items-center justify-between gap-3" style={{ animationDelay: `${base + 150}ms` }}>
-        <span className="text-[13px] text-fg-muted">
+      {/* Not animated itself: on phones Next is pinned to the bottom of the screen. */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <span className="animate-pop text-[13px] text-fg-muted" style={{ animationDelay: `${base + 150}ms` }}>
           {changed && (
             <>
-              You wrote <span lang="es" className="text-fg-soft">{feedback.answer}</span>
+              You wrote{" "}
+              <span lang="es" className="text-fg-soft">
+                {feedback.answer}
+              </span>
             </>
           )}
         </span>
-        <Button variant="light" autoFocus onClick={onNext}>
-          {isLast ? "See results" : "Next"} <span aria-hidden="true">→</span>
-        </Button>
+        <Dock style={{ animationDelay: `${base + 150}ms` }}>
+          <Button variant="light" size="lg" autoFocus onClick={onNext} className="w-full sm:w-auto">
+            {isLast ? "See results" : "Next"} <span aria-hidden="true">→</span>
+          </Button>
+        </Dock>
       </div>
     </div>
   );
@@ -368,7 +481,10 @@ function FeedbackDetails({ feedback, solidNotes, isLast, onNext }: { feedback: F
 
 function StepComplete({ done, onDismiss }: { done: NonNullable<Feedback["stepCompleted"]>; onDismiss: () => void }) {
   return (
-    <section aria-live="polite" className="flex animate-pop flex-wrap items-center justify-between gap-4 rounded-[20px] border border-ok/30 bg-ok/[0.07] px-[22px] py-5">
+    <section
+      aria-live="polite"
+      className="flex animate-pop flex-wrap items-center justify-between gap-4 rounded-[20px] border border-ok/30 bg-ok/[0.07] p-5 sm:px-[22px]"
+    >
       <div className="flex flex-col gap-1">
         <span className="font-mono text-xs tracking-[0.06em] text-ok">STEP COMPLETE</span>
         <span lang="es" className="text-[22px] font-semibold tracking-[-0.02em]">
@@ -376,15 +492,18 @@ function StepComplete({ done, onDismiss }: { done: NonNullable<Feedback["stepCom
         </span>
         {done.next && (
           <span className="text-sm text-fg-muted">
-            Up next: <span lang="es" className="text-fg-soft">{done.next}</span>
+            Up next:{" "}
+            <span lang="es" className="text-fg-soft">
+              {done.next}
+            </span>
           </span>
         )}
       </div>
-      <div className="flex gap-2.5">
-        <Button variant="secondary" onClick={onDismiss}>
+      <div className="flex w-full gap-2.5 sm:w-auto">
+        <Button variant="secondary" onClick={onDismiss} className="flex-1 sm:flex-none">
           Keep practicing
         </Button>
-        <ButtonLink href="/" variant="primary">
+        <ButtonLink href="/" variant="primary" className="flex-1 sm:flex-none">
           Journey <span aria-hidden="true">→</span>
         </ButtonLink>
       </div>
@@ -394,7 +513,7 @@ function StepComplete({ done, onDismiss }: { done: NonNullable<Feedback["stepCom
 
 function EmptySession() {
   return (
-    <div className="glass-subtle flex flex-col items-start gap-4 rounded-[22px] p-8">
+    <div className="glass-subtle flex flex-col items-start gap-4 rounded-[22px] p-6 sm:p-8">
       <h1 className="m-0 text-2xl font-semibold tracking-[-0.03em]">Nothing to practice here right now</h1>
       <p className="m-0 text-fg-muted">There aren&apos;t any questions ready for this step yet.</p>
       <Link href="/" className="text-accent">

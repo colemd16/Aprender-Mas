@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 # Runs ON YOUR MAC: deploys the current commit to the Google Cloud VM.
-#   npm run deploy                         deploy what's committed (and pushed)
+#   npm run deploy                         deploy what's committed and pushed
 #   npm run deploy -- --simulate-failure   test the automatic rollback
-# Uploads a snapshot of the commit (git archive) and runs scripts/server-deploy.sh there.
+# The server fetches that exact commit from GitHub (over its own SSH key) and runs
+# scripts/server-deploy.sh from it.
 set -euo pipefail
 
 VM=serversam@client-sites-vm
 GCLOUD=(--project softwarebydan --zone us-central1-a)
+REPO=git@github.com:colemd16/Aprender-Mas.git
 
 # gcloud isn't on the default PATH (and ~/.zshrc can't be sourced from bash).
 export PATH="$HOME/google-cloud-sdk/bin:$PATH"
@@ -18,23 +20,27 @@ if [ -n "$(git status --porcelain)" ]; then
   exit 1
 fi
 COMMIT=$(git rev-parse --short HEAD)
-if [ "$(git rev-parse HEAD)" != "$(git rev-parse '@{u}' 2>/dev/null || echo none)" ]; then
-  echo "Note: $COMMIT isn't pushed to GitHub yet. Deploying it anyway; push when you can."
+FULL=$(git rev-parse HEAD)
+git fetch -q origin
+if ! git merge-base --is-ancestor "$FULL" '@{u}' 2>/dev/null; then
+  echo "$COMMIT isn't on GitHub yet — the server deploys from GitHub, so push first."
+  exit 1
 fi
 
-WORK=$(mktemp -d)
-trap 'rm -rf "$WORK"' EXIT
-ARCHIVE=$WORK/aprender-mas.tar.gz
-# Stamp the archive with its commit so the server knows what's live.
-git archive --format=tar.gz --add-virtual-file=".archive-commit:$COMMIT" -o "$ARCHIVE" HEAD
-
-REMOTE=/tmp/aprender-mas-$COMMIT.tar.gz
-echo "Uploading ${COMMIT}…"
-gcloud compute scp "$ARCHIVE" "$VM:$REMOTE" "${GCLOUD[@]}" >/dev/null
+# Fetch just that commit into a fresh folder, then run its own deploy script from a
+# copy (the script swaps that folder into place as it goes).
+echo "Deploying ${COMMIT}…"
 gcloud compute ssh "$VM" "${GCLOUD[@]}" --command "
+  set -e
+  INCOMING=\$HOME/aprender-mas-incoming
+  rm -rf \$INCOMING && git init -q \$INCOMING
+  GIT_TERMINAL_PROMPT=0 git -C \$INCOMING fetch -q --depth 1 $REPO $FULL
+  git -C \$INCOMING -c advice.detachedHead=false checkout -q FETCH_HEAD
   STAGE=\$(mktemp -d)
-  tar -xzf $REMOTE -C \$STAGE scripts/server-deploy.sh && bash \$STAGE/scripts/server-deploy.sh $REMOTE ${1:-}
+  cp \$INCOMING/scripts/server-deploy.sh \$STAGE/
+  set +e
+  bash \$STAGE/server-deploy.sh $COMMIT ${1:-}
   status=\$?
-  rm -rf \$STAGE $REMOTE
+  rm -rf \$STAGE
   exit \$status
 "

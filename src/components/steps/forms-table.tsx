@@ -5,14 +5,14 @@ import { Dot } from "@/components/ui/pill";
 // One tense's forms as a table. Cells fade in row by row; irregular forms glow.
 export function FormsTable({ table, delay = 0 }: { table: FormTable; delay?: number }) {
   return (
-    <section aria-label={`${table.title} forms`} className="glass flex flex-col gap-4 rounded-[22px] p-6">
+    <section aria-label={`${table.title} forms`} className="glass flex flex-col gap-3 rounded-[22px] p-4 sm:gap-4 sm:p-6">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <h2 className="m-0 text-sm font-semibold">{table.title}</h2>
         <span className="text-[13px] text-fg-muted">{table.example}</span>
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[320px] table-fixed border-collapse">
+        <table className="w-full min-w-[290px] table-fixed border-collapse">
           <colgroup>
             <col className="w-[28%]" />
           </colgroup>
@@ -37,7 +37,7 @@ export function FormsTable({ table, delay = 0 }: { table: FormTable; delay?: num
                 {row.cells.map((cell, c) => (
                   <td key={c} lang="es" className="py-2.5 pr-2 align-top">
                     <div
-                      className={cn("flex animate-cell-in flex-col gap-0.5 text-lg font-medium", cell?.irregular && "glow-text")}
+                      className={cn("flex animate-cell-in flex-col gap-0.5 text-[17px] font-medium sm:text-lg", cell?.irregular && "glow-text")}
                       style={{ animationDelay: `${delay + 300 + r * 80 + c * 50}ms` }}
                     >
                       {cell ? cell.form : <span className="text-fg-faint">—</span>}

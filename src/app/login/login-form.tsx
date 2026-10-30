@@ -18,7 +18,7 @@ export function LoginForm() {
       // A new key per failed attempt replays the shake animation.
       key={state?.attempt}
       action={action}
-      className={`glass flex flex-[0_1_400px] flex-col gap-[18px] rounded-3xl p-8 ${state?.error ? "animate-shake" : "animate-rise [animation-delay:120ms]"}`}
+      className={`glass flex flex-[1_1_320px] flex-col gap-4 rounded-3xl p-6 sm:max-w-[400px] sm:flex-[0_1_400px] sm:gap-[18px] sm:p-8 ${state?.error ? "animate-shake" : "animate-rise [animation-delay:120ms]"}`}
     >
       <h1 className="m-0 mb-1 text-[26px] font-semibold tracking-[-0.03em]">Welcome back</h1>
 
