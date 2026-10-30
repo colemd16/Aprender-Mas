@@ -8,8 +8,9 @@ set -euo pipefail
 VM=serversam@client-sites-vm
 GCLOUD=(--project softwarebydan --zone us-central1-a)
 
-source ~/.zshrc >/dev/null 2>&1 || true
-command -v gcloud >/dev/null || { echo "gcloud isn't on PATH (expected via ~/.zshrc)"; exit 1; }
+# gcloud isn't on the default PATH (and ~/.zshrc can't be sourced from bash).
+export PATH="$HOME/google-cloud-sdk/bin:$PATH"
+command -v gcloud >/dev/null || { echo "gcloud not found at ~/google-cloud-sdk/bin"; exit 1; }
 
 cd "$(git rev-parse --show-toplevel)"
 if [ -n "$(git status --porcelain)" ]; then
