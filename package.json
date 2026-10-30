@@ -15,7 +15,8 @@
     "eval:grading": "tsx scripts/eval-grading.ts",
     "generate:sentences": "tsx scripts/generate-sentences.ts",
     "review:sentences": "tsx scripts/review-sentences.ts",
-    "deploy": "bash scripts/deploy.sh"
+    "deploy": "bash scripts/deploy.sh",
+    "icons": "node scripts/generate-icons.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.136.0",
@@ -33,6 +34,7 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@resvg/resvg-js": "^2.6.2",
     "@tailwindcss/turbopack": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
@@ -42,6 +44,8 @@
     "drizzle-kit": "^0.31.11",
     "eslint": "^9",
     "eslint-config-next": "16.4.2",
+    "geist": "^1.5.1",
+    "satori": "^0.18.3",
     "tailwindcss": "^4",
     "tsx": "^4.23.15",
     "typescript": "^5"

@@ -21,7 +21,7 @@ export function SessionSummaryView({ sessionId, summary, kind, stepId, stepTitle
   const value = cp ? cp.score : share;
 
   return (
-    <div className="flex min-h-screen flex-col bg-[radial-gradient(800px_420px_at_40%_40%,rgb(91_224_160/0.07),transparent_70%)]">
+    <div className="flex min-h-app flex-col bg-[radial-gradient(800px_420px_at_40%_40%,rgb(91_224_160/0.07),transparent_70%)]">
       <header className="px-5 py-4 sm:px-8 sm:py-5">
         <Wordmark />
       </header>

@@ -33,7 +33,7 @@ function SessionRowLink({ session: s }: { session: SessionRow }) {
   return (
     <Link
       href={`/sessions/${s.id}`}
-      className="glass-subtle flex items-center gap-4 rounded-[18px] px-5 py-4 text-fg no-underline transition-[transform,border-color] duration-200 ease-spring hover:-translate-y-0.5 hover:border-white/16"
+      className="glass-subtle flex items-center gap-4 rounded-[18px] px-5 py-4 text-fg no-underline transition-[transform,border-color] duration-200 ease-spring hover:-translate-y-0.5 hover:border-white/16 active:scale-[0.98]"
     >
       <ProgressRing value={share} size={36} stroke={4} color={share >= 0.85 ? "var(--color-ok)" : "var(--color-accent)"} />
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">

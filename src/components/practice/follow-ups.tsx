@@ -108,7 +108,7 @@ export function FollowUps({ attemptId }: { attemptId: string }) {
               }
             }}
             placeholder={exchanges.length ? "Ask another question…" : "Ask why… e.g. “why not estuvimos?”"}
-            className="block min-w-0 flex-1 resize-none overflow-hidden bg-transparent py-2 text-[15px] leading-normal text-fg outline-none placeholder:text-fg-faint"
+            className="block min-w-0 flex-1 resize-none overflow-hidden bg-transparent py-2 text-base leading-normal text-fg outline-none placeholder:text-fg-faint"
           />
           <span className="flex-none self-center font-mono text-xs text-fg-subtle">{left} left</span>
           <button

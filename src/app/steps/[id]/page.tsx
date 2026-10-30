@@ -17,7 +17,7 @@ import { startPractice } from "@/app/practice/actions";
 
 export default function StepPage({ params }: PageProps<"/steps/[id]">) {
   return (
-    <div className="flex min-h-screen flex-col bg-[radial-gradient(900px_420px_at_70%_30%,rgb(252_209_22/0.06),transparent_70%),radial-gradient(900px_520px_at_10%_0%,rgb(0_56_147/0.4),transparent_70%)]">
+    <div className="flex min-h-app flex-col bg-[radial-gradient(900px_420px_at_70%_30%,rgb(252_209_22/0.06),transparent_70%),radial-gradient(900px_520px_at_10%_0%,rgb(0_56_147/0.4),transparent_70%)]">
       <header className="flex flex-wrap items-center justify-between gap-4 px-5 py-4 sm:px-8 sm:py-5">
         <Wordmark />
         <Link href="/" className="text-sm text-fg-soft no-underline hover:text-fg">

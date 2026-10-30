@@ -43,7 +43,7 @@ async function Practice({ params }: { params: PageProps<"/practice/[sessionId]">
 
 function PracticeSkeleton() {
   return (
-    <main aria-busy="true" aria-label="Preparing your session" className="mx-auto flex min-h-screen w-full max-w-[840px] flex-col justify-center gap-8 px-5 sm:px-8">
+    <main aria-busy="true" aria-label="Preparing your session" className="mx-auto flex min-h-app w-full max-w-[840px] flex-col justify-center gap-8 px-5 sm:px-8">
       <div className="h-7 w-40 animate-pulse rounded-full bg-white/[0.05]" />
       <div className="h-14 w-[min(520px,90%)] animate-pulse rounded-xl bg-white/[0.05]" />
       <div className="h-[92px] animate-pulse rounded-[22px] bg-white/[0.04]" />

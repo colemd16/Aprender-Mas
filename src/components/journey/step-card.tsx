@@ -48,7 +48,7 @@ export function StepCard({ step, index, solid, sessions }: { step: JourneyStep; 
   const cardClasses = cn(
     "flex h-full flex-col gap-3.5 rounded-[20px] border px-[22px] py-5 text-fg no-underline transition-[transform,border-color] duration-200 ease-spring",
     active ? "border-accent/35 bg-accent/[0.07]" : "border-white/[0.07] bg-white/[0.025]",
-    open && "hover:-translate-y-[3px] hover:border-white/16",
+    open && "hover:-translate-y-[3px] hover:border-white/16 active:scale-[0.98]",
     !open && "cursor-default",
   );
 

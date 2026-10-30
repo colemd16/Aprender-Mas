@@ -141,8 +141,18 @@
   color-scheme: dark;
 }
 
+/* A full screen, less what the status bar and home indicator take when installed. */
+@utility min-h-app {
+  min-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+}
+
 html {
   background: var(--color-night);
+  /* Feel like an app, not a page: no grey tap flash, no rubber-band past the edges,
+     no text growing when the phone turns. */
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+  overscroll-behavior: none;
 }
 
 body {
@@ -150,6 +160,17 @@ body {
   color: var(--color-fg);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+  /* Keep content clear of the notch, the status bar and the home indicator. */
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+/* Taps are taps: no double-tap zoom delay, no press-and-hold menu, no stray text selection. */
+a,
+button,
+summary {
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
+  user-select: none;
 }
 
 /* Keyboard focus ring for buttons, links and other controls. Text fields are left out

@@ -15,7 +15,7 @@ export const metadata: Metadata = { title: "Session review · Aprender Más" };
 
 export default function SessionReviewPage({ params }: PageProps<"/sessions/[sessionId]">) {
   return (
-    <div className="spotlight flex min-h-screen flex-col">
+    <div className="spotlight flex min-h-app flex-col">
       <header className="flex flex-wrap items-center justify-between gap-4 px-5 py-4 sm:px-8 sm:py-5">
         <Wordmark />
         <Link href="/" className="text-sm text-fg-soft no-underline hover:text-fg">

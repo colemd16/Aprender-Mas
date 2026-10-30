@@ -11,7 +11,7 @@ import { signOut } from "./login/actions";
 
 export default function JourneyPage({ searchParams }: PageProps<"/">) {
   return (
-    <div className="spotlight flex min-h-screen flex-col">
+    <div className="spotlight flex min-h-app flex-col">
       <Suspense fallback={<JourneySkeleton />}>
         <Journey searchParams={searchParams} />
       </Suspense>

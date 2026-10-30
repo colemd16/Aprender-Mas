@@ -14,7 +14,7 @@ const PHRASES = [
 
 export default function LoginPage() {
   return (
-    <div className="flex min-h-screen flex-col bg-[radial-gradient(800px_500px_at_30%_40%,rgb(252_209_22/0.08),transparent_70%),radial-gradient(900px_600px_at_90%_0%,rgb(0_56_147/0.45),transparent_70%)]">
+    <div className="flex min-h-app flex-col bg-[radial-gradient(800px_500px_at_30%_40%,rgb(252_209_22/0.08),transparent_70%),radial-gradient(900px_600px_at_90%_0%,rgb(0_56_147/0.45),transparent_70%)]">
       <header className="px-8 py-6">
         <Wordmark />
       </header>
