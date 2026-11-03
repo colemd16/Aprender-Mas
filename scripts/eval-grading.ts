@@ -17,7 +17,12 @@ import { anthropic, GRADING_MODEL } from "../src/lib/anthropic";
 import type { AccentLexicon } from "../src/domain/grading/accents";
 
 // Haiku 5.5 prices per million tokens (prompts under 100K tokens).
-const PRICE = { input: 0.1, output: 0.5, cacheRead: 0.01, cacheWrite: 0.125 };
+// $ per million tokens (5-minute cache writes).
+const PRICES: Record<string, { input: number; output: number; cacheRead: number; cacheWrite: number }> = {
+  "claude-haiku-5-5": { input: 0.1, output: 0.5, cacheRead: 0.01, cacheWrite: 0.125 },
+  "claude-sonnet-5-5": { input: 2, output: 10, cacheRead: 0.2, cacheWrite: 2.5 },
+};
+const PRICE = PRICES[GRADING_MODEL] ?? { input: NaN, output: NaN, cacheRead: NaN, cacheWrite: NaN };
 
 const arg = (name: string) => process.argv.find((a) => a.startsWith(`--${name}=`))?.split("=")[1];
 const effort = (arg("effort") ?? "medium") as "low" | "medium" | "high";
