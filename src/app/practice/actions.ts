@@ -1,7 +1,6 @@
 "use server";
 
 import { and, eq } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { ERROR_TYPES } from "@/content/error-types";
 import { db } from "@/db";
@@ -11,6 +10,7 @@ import { getAccentLexicon } from "@/data/lexicon";
 import {
   canOpenStep,
   getAccentMode,
+  getNextStep,
   getOwnedSession,
   getSessionPlan,
   getSkillTitles,
@@ -20,31 +20,17 @@ import {
   loadFormExercise,
   loadSentenceExercise,
   type PracticeItem,
+  type UpNext,
 } from "@/data/practice";
 import { diffAnswer, type DiffOp } from "@/domain/grading/diff";
 import { gradeForm } from "@/domain/grading/form-grader";
 import { gradeSentence, GradingUnavailableError } from "@/domain/grading/sentence/grade";
 import type { Verdict } from "@/domain/grading/types";
-import { findActiveStep } from "@/domain/progress/journey";
 import { CHECKPOINT_PASS } from "@/domain/progress/rules";
 import { getCurrentUser } from "@/lib/auth";
 import { anthropic, GRADING_MODEL } from "@/lib/anthropic";
 
 const ERROR_NAMES = new Map(ERROR_TYPES.map((e) => [e.id, e.name]));
-
-// The step to move on to: the first one not yet completed.
-export type UpNext = { id: string; title: string; kind: "learn" | "checkpoint"; levelId: number; position: number };
-
-async function nextStepFor(userId: string): Promise<UpNext | null> {
-  const [allSteps, done] = await Promise.all([
-    db.select({ id: steps.id, levelId: steps.levelId, position: steps.position, title: steps.title, kind: steps.kind }).from(steps),
-    db
-      .select({ stepId: stepProgress.stepId })
-      .from(stepProgress)
-      .where(and(eq(stepProgress.userId, userId), eq(stepProgress.status, "completed"))),
-  ]);
-  return findActiveStep(allSteps, new Set(done.map((d) => d.stepId)));
-}
 
 export async function startPractice(stepId: string) {
   const user = await getCurrentUser();
@@ -117,8 +103,7 @@ export async function submitAnswer(input: AnswerInput): Promise<AnswerFeedback> 
   const titles = await getSkillTitles(outcome.newlySolid);
   let stepCompleted: Extract<AnswerFeedback, { ok: true }>["stepCompleted"] = null;
   if (outcome.completedStepId) {
-    stepCompleted = { title: (await getStepTitle(outcome.completedStepId)) ?? "Step", next: await nextStepFor(user.id) };
-    revalidatePath("/");
+    stepCompleted = { title: (await getStepTitle(outcome.completedStepId)) ?? "Step", next: await getNextStep(user.id) };
   }
 
   return {
@@ -147,6 +132,8 @@ export async function moreQuestions(sessionId: string): Promise<PracticeItem[]> 
   if (needed === 0) return [];
   return getSessionPlan(user.id, session, { continuing: true });
 }
+
+export type { UpNext };
 
 export type SessionSummary = {
   answered: number;
@@ -184,12 +171,14 @@ export async function finishSession(sessionId: string): Promise<SessionSummary> 
     checkpoint = { score, passed, nextLevelUnlocked: passed };
   }
 
+  // No revalidatePath here: nothing is cached (every page reads fresh), and revalidating
+  // from an action re-renders the page you're on — which sent a just-ended session to its
+  // review page instead of letting the summary (and its Up next) show.
   if (!session.endedAt) await endSession(user.id, session.id);
-  revalidatePath("/");
   const skills = session.kind === "learn" && session.stepId ? await getStepSkillProgress(user.id, session.stepId) : [];
   // Decided here, from the saved progress — not from what the screen happened to see — so
   // a finished step always leads to the next one, however it was finished.
   const stepComplete = skills.length > 0 && skills.every((s) => s.solid);
-  const upNext = stepComplete || checkpoint?.passed ? await nextStepFor(user.id) : null;
+  const upNext = stepComplete || checkpoint?.passed ? await getNextStep(user.id) : null;
   return { answered: rows.length, correct, checkpoint, skills, stepComplete, upNext };
 }

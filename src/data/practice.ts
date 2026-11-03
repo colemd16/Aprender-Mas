@@ -308,6 +308,20 @@ export async function getSkillTitles(skillIds: string[]) {
   return new Map(rows.map((r) => [r.id, r.title]));
 }
 
+// The step to move on to: the first one not yet completed.
+export type UpNext = { id: string; title: string; kind: "learn" | "checkpoint"; levelId: number; position: number };
+
+export async function getNextStep(userId: string): Promise<UpNext | null> {
+  const [allSteps, done] = await Promise.all([
+    db.select({ id: steps.id, levelId: steps.levelId, position: steps.position, title: steps.title, kind: steps.kind }).from(steps),
+    db
+      .select({ stepId: stepProgress.stepId })
+      .from(stepProgress)
+      .where(and(eq(stepProgress.userId, userId), eq(stepProgress.status, "completed"))),
+  ]);
+  return findActiveStep(allSteps, new Set(done.map((d) => d.stepId)));
+}
+
 export async function getStepTitle(stepId: string) {
   const [s] = await db.select({ title: steps.title }).from(steps).where(eq(steps.id, stepId));
   return s?.title ?? null;

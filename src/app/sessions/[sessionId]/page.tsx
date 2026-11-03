@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { startPractice } from "@/app/practice/actions";
+import { UpNextCard } from "@/components/practice/up-next-card";
 import { ReviewList } from "@/components/review/review-list";
 import { SessionDate } from "@/components/review/session-date";
 import { ProgressRing } from "@/components/ui/progress-ring";
@@ -9,6 +10,7 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { BackLink, TopBar } from "@/components/ui/top-bar";
 import { Wordmark } from "@/components/ui/wordmark";
 import { getSessionReview } from "@/data/history";
+import { getNextStep, getStepProgress } from "@/data/practice";
 import { getCurrentUser } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Session review · Aprender Más" };
@@ -32,6 +34,10 @@ async function Review({ params }: { params: PageProps<"/sessions/[sessionId]">["
   const share = review.answered ? review.correct / review.answered : 0;
   const title = review.kind === "checkpoint" ? `Level ${review.levelId} checkpoint` : (review.stepTitle ?? "Practice");
   const asked = review.attempts.reduce((n, a) => n + a.followUps.length, 0);
+  // Once this session's step is complete (or its checkpoint passed), the way forward is
+  // right here too — whichever screen a finished session lands on.
+  const stepDone = review.kind === "checkpoint" ? !!review.checkpoint?.passed : !!review.stepId && (await getStepProgress(user.id, review.stepId)).needed === 0;
+  const upNext = stepDone ? await getNextStep(user.id) : null;
 
   return (
     <>
@@ -56,6 +62,8 @@ async function Review({ params }: { params: PageProps<"/sessions/[sessionId]">["
             </p>
           </div>
         </div>
+
+        {upNext && <UpNextCard next={upNext} delay={120} />}
 
         {review.attempts.length ? <ReviewList attempts={review.attempts} /> : <p className="m-0 text-fg-muted">No answers in this session.</p>}
 

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useTransition } from "react";
 import { finishSession, moreQuestions, submitAnswer, type AnswerFeedback, type SessionSummary } from "@/app/practice/actions";
 import type { PracticeItem } from "@/data/practice";
@@ -55,6 +56,7 @@ export function PracticeSession({ sessionId, kind, stepId, stepTitle, levelId, i
   const startNeeded = useRef(initialProgress?.needed ?? 0);
   const batches = useRef(0);
   const [, startTransition] = useTransition();
+  const router = useRouter();
   const shownAt = useRef(0);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -161,6 +163,16 @@ export function PracticeSession({ sessionId, kind, stepId, stepTitle, levelId, i
     startTransition(async () => setPhase({ name: "done", summary: await finishSession(sessionId) }));
   }
 
+  // The step is complete: close the session and go straight on to the next step.
+  function startNextStep(nextStepId: string) {
+    inputRef.current?.blur();
+    setPhase({ name: "finishing" });
+    startTransition(async () => {
+      await finishSession(sessionId);
+      router.push(`/steps/${nextStepId}`);
+    });
+  }
+
   if (phase.name === "done") {
     return <SessionSummaryView sessionId={sessionId} summary={phase.summary} kind={kind} stepId={stepId} stepTitle={stepTitle} levelId={levelId} />;
   }
@@ -172,7 +184,8 @@ export function PracticeSession({ sessionId, kind, stepId, stepTitle, levelId, i
   const toGo = untilComplete && progress ? progress.needed : null;
   const done = toGo !== null ? Math.min(1, Math.max(0, (startNeeded.current - toGo) / Math.max(1, startNeeded.current))) : answered / Math.max(1, queue.length);
   const count = toGo !== null ? (toGo === 0 ? "done" : `${toGo} to go`) : `${Math.min(answered, queue.length)}/${queue.length}`;
-  const nextLabel = stepDone ? "Finish step" : isLast && !untilComplete ? "See results" : "Next";
+  const nextLabel = stepDone ? (stepDone.next ? "See summary" : "Finish step") : isLast && !untilComplete ? "See results" : "Next";
+  const nextStep = stepDone?.next;
   const where =
     kind === "checkpoint" ? (
       `Level ${levelId} checkpoint`
@@ -383,7 +396,14 @@ export function PracticeSession({ sessionId, kind, stepId, stepTitle, levelId, i
             )}
 
             {phase.name === "feedback" && (
-              <FeedbackDetails feedback={phase.feedback} solidNotes={solidNotes} nextLabel={nextLabel} loading={loadingMore} onNext={next} />
+              <FeedbackDetails
+                feedback={phase.feedback}
+                solidNotes={solidNotes}
+                nextLabel={nextLabel}
+                loading={loadingMore}
+                onNext={next}
+                nextStep={nextStep ? { title: nextStep.title, checkpoint: nextStep.kind === "checkpoint", onStart: () => startNextStep(nextStep.id) } : null}
+              />
             )}
           </>
         )}
@@ -456,12 +476,14 @@ function FeedbackDetails({
   nextLabel,
   loading,
   onNext,
+  nextStep,
 }: {
   feedback: Feedback;
   solidNotes: string[];
   nextLabel: string;
   loading: boolean;
   onNext: () => void;
+  nextStep: { title: string; checkpoint: boolean; onStart: () => void } | null; // once this answer finished the step
 }) {
   const base = morphDuration(feedback.diff) + 120;
   const changed = feedback.diff.some((d) => d.op !== "same");
@@ -524,7 +546,26 @@ function FeedbackDetails({
           )}
         </span>
         <Dock style={{ animationDelay: `${base + 150}ms` }}>
-          <Button variant="light" size="lg" autoFocus onClick={onNext} disabled={loading} aria-busy={loading} className="w-full sm:w-auto">
+          {nextStep && (
+            <Button variant="primary" size="lg" autoFocus onClick={nextStep.onStart} className="w-full sm:order-last sm:w-auto">
+              {nextStep.checkpoint ? "Take the checkpoint" : "Start:"}{" "}
+              {!nextStep.checkpoint && (
+                <span lang="es" className="min-w-0 truncate">
+                  {nextStep.title}
+                </span>
+              )}{" "}
+              <span aria-hidden="true">→</span>
+            </Button>
+          )}
+          <Button
+            variant={nextStep ? "secondary" : "light"}
+            size="lg"
+            autoFocus={!nextStep}
+            onClick={onNext}
+            disabled={loading}
+            aria-busy={loading}
+            className="w-full sm:w-auto"
+          >
             {loading ? (
               <>
                 <Spinner /> More questions
