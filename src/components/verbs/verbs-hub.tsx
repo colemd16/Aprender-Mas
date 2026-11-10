@@ -1,60 +1,25 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState, useSyncExternalStore } from "react";
+import { useMemo, useState } from "react";
+import type { TenseId } from "@/content/tenses";
 import type { VerbListItem, VerbSet } from "@/data/verbs";
 import { ButtonLink } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
 import { Dock } from "@/components/ui/dock";
 import { ProgressRing } from "@/components/ui/progress-ring";
-import { levelTone, TENSE_GROUPS } from "./levels";
+import { ChallengePicker, SETS, useChallengeChoice } from "./challenge-picker";
+import { levelTone } from "./levels";
 
-const SETS: { id: VerbSet; label: string }[] = [
-  { id: "common", label: "Most common" },
-  { id: "irregular", label: "Irregular" },
-  { id: "started", label: "In progress" },
-  { id: "all", label: "All" },
-];
-const DEFAULT_TENSES = ["ind_present", "ind_preterite", "ind_imperfect", "ind_future"];
 const PAGE = 40;
-const STORE = "verbs-challenge";
-
-type Choice = { set?: VerbSet; tenses?: string[] };
-const noSubscribe = () => () => {};
-const readSaved = () => {
-  try {
-    return localStorage.getItem(STORE);
-  } catch {
-    return null;
-  }
-};
-
 const inSet = (v: VerbListItem, set: VerbSet) => (set === "common" ? v.common : set === "irregular" ? v.irregular : set === "started" ? v.started : true);
 // Search ignores accents and case: "oir" finds oír.
 const fold = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
 
 // The verb challenge's hub: pick a set of verbs and the tenses to drill, then start —
 // or browse the verbs and open one to work through all of its tenses.
-export function VerbsHub({ verbs }: { verbs: VerbListItem[] }) {
-  // The last choice is remembered on this device (read once the page is in the browser).
-  const savedRaw = useSyncExternalStore(noSubscribe, readSaved, () => null);
-  const saved = useMemo((): Choice => {
-    try {
-      return JSON.parse(savedRaw ?? "{}") as Choice;
-    } catch {
-      return {};
-    }
-  }, [savedRaw]);
-  const [choice, setChoice] = useState<Choice>({});
-  const set: VerbSet = choice.set ?? (SETS.some((s) => s.id === saved.set) ? saved.set! : "common");
-  const tenses = choice.tenses ?? (saved.tenses?.length ? saved.tenses : DEFAULT_TENSES);
-  const choose = (next: Choice) => {
-    const merged = { set, tenses, ...next };
-    setChoice(merged);
-    try {
-      localStorage.setItem(STORE, JSON.stringify(merged));
-    } catch {}
-  };
+export function VerbsHub({ verbs, taught }: { verbs: VerbListItem[]; taught: TenseId[] }) {
+  const { set, tenses, setSet, toggleTense, href } = useChallengeChoice();
   const [query, setQuery] = useState("");
   const [shown, setShown] = useState(PAGE);
 
@@ -63,14 +28,7 @@ export function VerbsHub({ verbs }: { verbs: VerbListItem[] }) {
     () => (query.trim() ? verbs.filter((v) => fold(v.infinitive).includes(fold(query.trim())) || fold(v.english).includes(fold(query.trim()))) : pool),
     [verbs, pool, query],
   );
-  // At least one tense stays on.
-  const toggle = (id: string) => choose({ tenses: tenses.includes(id) ? (tenses.length > 1 ? tenses.filter((x) => x !== id) : tenses) : [...tenses, id] });
-  const href = `/verbs/practice?set=${set}&tenses=${tenses.join(",")}`;
-  const chip = (on: boolean) =>
-    cn(
-      "cursor-pointer rounded-full border px-3.5 py-1.5 text-[13px] font-medium transition-[transform,background,border-color,color] duration-200 ease-spring active:scale-95",
-      on ? "border-accent/45 bg-accent/15 text-accent-bright" : "border-white/10 bg-white/[0.03] text-fg-soft hover:border-white/20",
-    );
+  const setCounts = useMemo(() => Object.fromEntries(SETS.map((s) => [s.id, verbs.filter((v) => inSet(v, s.id)).length])) as Record<VerbSet, number>, [verbs]);
 
   const start = pool.length ? (
     <ButtonLink href={href} size="lg" className="w-full sm:w-auto">
@@ -85,31 +43,7 @@ export function VerbsHub({ verbs }: { verbs: VerbListItem[] }) {
   return (
     <>
       <section aria-label="Start a challenge" className="glass-subtle flex animate-rise flex-col gap-5 rounded-[22px] p-4 [animation-delay:80ms] sm:p-6">
-        <div className="flex flex-col gap-2.5">
-          <h2 className="m-0 text-sm font-semibold">Verbs</h2>
-          <div className="flex flex-wrap gap-2">
-            {SETS.map((s) => (
-              <button key={s.id} type="button" aria-pressed={set === s.id} onClick={() => choose({ set: s.id })} className={chip(set === s.id)}>
-                {s.label} <span className="font-mono text-xs opacity-70">{verbs.filter((v) => inSet(v, s.id)).length}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="flex flex-col gap-3">
-          <h2 className="m-0 text-sm font-semibold">Tenses</h2>
-          {TENSE_GROUPS.map((g) => (
-            <div key={g.title} className="flex flex-col gap-2">
-              <span className="text-xs text-fg-muted">{g.title}</span>
-              <div className="flex flex-wrap gap-2">
-                {g.tenses.map((t) => (
-                  <button key={t.id} type="button" aria-pressed={tenses.includes(t.id)} onClick={() => toggle(t.id)} className={chip(tenses.includes(t.id))}>
-                    {t.nameEn}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
+        <ChallengePicker set={set} tenses={tenses} onSet={setSet} onToggle={toggleTense} taught={taught} setCounts={setCounts} />
         <div className="hidden sm:block">{start}</div>
       </section>
 

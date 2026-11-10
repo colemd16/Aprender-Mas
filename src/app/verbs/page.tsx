@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import { BackLink, TopBar } from "@/components/ui/top-bar";
 import { Wordmark } from "@/components/ui/wordmark";
 import { VerbsHub } from "@/components/verbs/verbs-hub";
-import { getVerbOverview } from "@/data/verbs";
+import { getTaughtTenses, getVerbOverview } from "@/data/verbs";
 import { MASTERED, VERB_LEVELS } from "@/domain/verbs/mastery";
 import { getCurrentUser } from "@/lib/auth";
 
@@ -35,7 +35,7 @@ export default function VerbsPage() {
 
 async function Hub() {
   const user = await getCurrentUser();
-  const overview = await getVerbOverview(user.id);
+  const [overview, taught] = await Promise.all([getVerbOverview(user.id), getTaughtTenses(user.id)]);
   return (
     <>
       {overview.answered > 0 && (
@@ -51,7 +51,7 @@ async function Hub() {
           </span>
         </div>
       )}
-      <VerbsHub verbs={overview.verbs} />
+      <VerbsHub verbs={overview.verbs} taught={taught} />
     </>
   );
 }

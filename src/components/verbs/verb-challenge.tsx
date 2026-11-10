@@ -1,17 +1,23 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { checkVerbAnswer, moreVerbCards, type VerbFeedback } from "@/app/verbs/actions";
+import { fillFrame, TENSE_GUIDES } from "@/content/tense-guides";
+import type { TenseId } from "@/content/tenses";
 import type { ChallengeOptions, VerbCard } from "@/data/verbs";
 import { Explanation } from "@/components/practice/explanation";
 import { Morph } from "@/components/practice/morph";
 import { cn } from "@/components/ui/cn";
 import { Dot, Pill } from "@/components/ui/pill";
+import { Sheet } from "@/components/ui/sheet";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { Spinner } from "@/components/ui/spinner";
 import { Wordmark } from "@/components/ui/wordmark";
 import { levelFor, nextLevel } from "@/domain/verbs/mastery";
+import { ChallengePicker, useChallengeChoice } from "./challenge-picker";
+import { InfoIcon, TenseInfo } from "./tense-guide";
 
 type Feedback = Extract<VerbFeedback, { ok: true }>;
 type Phase = "answering" | "checking" | "right" | "wrong";
@@ -21,9 +27,44 @@ const REFILL_AT = 5; // fetch more cards when this few are left
 
 const countKey = (c: Pick<VerbCard, "infinitive" | "tenseId">) => `${c.infinitive}|${c.tenseId}`;
 
+// A cue that calls for the card's tense, chosen steadily per card: "Si tú ___, todo sería distinto".
+function frameFor(card: VerbCard) {
+  const frames = TENSE_GUIDES[card.tenseId]?.frames ?? [];
+  if (!frames.length) return null;
+  const hash = [...card.key].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) >>> 0, 7);
+  return fillFrame(frames[hash % frames.length], card.person);
+}
+
+function Frame({ text }: { text: string }) {
+  const [before, after] = text.split("___");
+  return (
+    <p lang="es" className="m-0 text-[17px] leading-snug text-fg-soft sm:text-xl">
+      {before}
+      <span aria-label="blank" className="mx-0.5 inline-block w-14 translate-y-[3px] border-b-2 border-accent/70" />
+      {after}
+    </p>
+  );
+}
+
 // The verb challenge: rapid-fire cards, one form each, as long as you like. The answer box
 // never leaves the page (or loses focus), so on a phone the keyboard stays up throughout.
-export function VerbChallenge({ options, cards, title, backHref }: { options: ChallengeOptions; cards: VerbCard[]; title: string; backHref: string }) {
+export function VerbChallenge({
+  options,
+  cards,
+  title,
+  backHref,
+  taught,
+}: {
+  options: ChallengeOptions;
+  cards: VerbCard[];
+  title: string;
+  backHref: string;
+  taught: TenseId[];
+}) {
+  const router = useRouter();
+  const choice = useChallengeChoice();
+  const [changing, setChanging] = useState(false);
+  const mixed = !options.verb;
   const [queue, setQueue] = useState(cards);
   const [index, setIndex] = useState(0);
   const [input, setInput] = useState("");
@@ -124,6 +165,8 @@ export function VerbChallenge({ options, cards, title, backHref }: { options: Ch
 
   // Buttons keep the answer box focused, so tapping them doesn't drop the phone keyboard.
   const keepFocus = (e: React.PointerEvent) => e.preventDefault();
+  // Back to the answer box once a sheet closes.
+  const refocus = (open: boolean) => !open && requestAnimationFrame(() => inputRef.current?.focus({ preventScroll: true }));
 
   return (
     <div className="flex min-h-app flex-col bg-[radial-gradient(900px_420px_at_50%_30%,rgb(122_162_255/0.08),transparent_70%),radial-gradient(1000px_520px_at_85%_-10%,rgb(0_56_147/0.45),transparent_70%)]">
@@ -152,10 +195,58 @@ export function VerbChallenge({ options, cards, title, backHref }: { options: Ch
             <span className="text-ok">{tally.right}</span>/{tally.answered}
           </span>
         </span>
+        {mixed && (
+          <button
+            type="button"
+            onClick={() => setChanging(true)}
+            aria-label="Change verbs and tenses"
+            className="-mr-2 flex size-10 flex-none cursor-pointer items-center justify-center rounded-full text-fg-soft transition-[transform,color] duration-200 ease-spring hover:text-fg active:scale-90 sm:mr-0 sm:h-9 sm:w-auto sm:rounded-xl sm:px-3 sm:text-sm"
+          >
+            <svg
+              width="19"
+              height="19"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.9"
+              strokeLinecap="round"
+              aria-hidden="true"
+              className="sm:hidden"
+            >
+              <path d="M4 7h10M18 7h2M4 17h4M12 17h8" />
+              <circle cx="16" cy="7" r="2" />
+              <circle cx="10" cy="17" r="2" />
+            </svg>
+            <span className="hidden sm:inline">Change</span>
+          </button>
+        )}
         <Link href={backHref} className="hidden text-sm text-fg-soft no-underline hover:text-fg sm:inline">
           Done
         </Link>
       </header>
+
+      {mixed && (
+        <Sheet
+          open={changing}
+          onClose={() => {
+            setChanging(false);
+            refocus(false);
+          }}
+          title="Verbs and tenses"
+        >
+          <ChallengePicker set={choice.set} tenses={choice.tenses} onSet={choice.setSet} onToggle={choice.toggleTense} taught={taught} />
+          <button
+            type="button"
+            onClick={() => {
+              setChanging(false);
+              router.replace(choice.href);
+            }}
+            className="glow-accent inline-flex h-[52px] w-full cursor-pointer items-center justify-center gap-2.5 rounded-2xl bg-accent text-base font-semibold text-night transition-[transform,filter] duration-200 ease-spring hover:brightness-110 active:scale-[0.97]"
+          >
+            Shuffle with these <span aria-hidden="true">→</span>
+          </button>
+        </Sheet>
+      )}
 
       {toast && (
         <div
@@ -183,7 +274,16 @@ export function VerbChallenge({ options, cards, title, backHref }: { options: Ch
           <>
             <div key={card.key} className="flex animate-rise flex-col items-start gap-3 sm:gap-4">
               <div className="flex flex-wrap gap-2">
-                <Pill tone="accent">{card.tenseName}</Pill>
+                <TenseInfo
+                  tenseIds={[card.tenseId]}
+                  title="When it's used"
+                  meaning={card.meaning}
+                  taught={taught}
+                  onOpenChange={refocus}
+                  className="inline-flex cursor-pointer items-center gap-1.5 rounded-full bg-accent/12 px-3.5 py-1.5 text-[13px] font-medium text-accent-bright transition-[transform,background] duration-200 ease-spring hover:bg-accent/20 active:scale-95"
+                >
+                  {card.tenseName} <InfoIcon />
+                </TenseInfo>
                 <Pill>
                   <span lang="es">{card.personLabel}</span>
                 </Pill>
@@ -192,6 +292,11 @@ export function VerbChallenge({ options, cards, title, backHref }: { options: Ch
                 <span lang="es">{card.infinitive}</span>
                 <span className="text-base font-normal tracking-normal text-fg-muted sm:text-xl">{card.english}</span>
               </h1>
+              {/* A cue that calls for the tense, and what this exact form means. */}
+              <div className="flex flex-col gap-1">
+                {frameFor(card) && <Frame text={frameFor(card)!} />}
+                <p className="m-0 text-[14px] text-fg-muted sm:text-[15px]">“{card.meaning}”</p>
+              </div>
             </div>
 
             <div className="relative">

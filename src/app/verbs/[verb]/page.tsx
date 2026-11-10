@@ -11,7 +11,8 @@ import { ProgressRing } from "@/components/ui/progress-ring";
 import { BackLink, TopBar } from "@/components/ui/top-bar";
 import { Wordmark } from "@/components/ui/wordmark";
 import { levelTone, TENSE_GROUPS } from "@/components/verbs/levels";
-import { getVerbDetail } from "@/data/verbs";
+import { InfoIcon, TenseInfo } from "@/components/verbs/tense-guide";
+import { getTaughtTenses, getVerbDetail } from "@/data/verbs";
 import { MASTERED, nextLevel } from "@/domain/verbs/mastery";
 import { getCurrentUser } from "@/lib/auth";
 
@@ -42,7 +43,7 @@ const decode = (s: string) => {
 async function Verb({ params }: { params: PageProps<"/verbs/[verb]">["params"] }) {
   const infinitive = decode((await params).verb);
   const user = await getCurrentUser();
-  const verb = await getVerbDetail(user.id, infinitive);
+  const [verb, taught] = await Promise.all([getVerbDetail(user.id, infinitive), getTaughtTenses(user.id)]);
   if (!verb) notFound();
   const byId = new Map(verb.tenses.map((t) => [t.tenseId, t]));
   const weakest = verb.tenses.reduce((a, b) => (b.correct < a.correct ? b : a));
@@ -85,7 +86,16 @@ async function Verb({ params }: { params: PageProps<"/verbs/[verb]">["params"] }
         if (!rows.length) return null;
         return (
           <section key={g.title} aria-label={g.title} className="flex animate-rise flex-col gap-2" style={{ animationDelay: `${100 + gi * 60}ms` }}>
-            <h2 className="m-0 text-sm font-semibold">{g.title}</h2>
+            <h2 className="m-0 text-sm font-semibold">
+              <TenseInfo
+                tenseIds={rows.map((t) => t.tenseId)}
+                title={g.title}
+                taught={taught}
+                className="flex cursor-pointer items-center gap-1.5 transition-colors hover:text-accent-bright"
+              >
+                {g.title} <span className="text-fg-muted">{<InfoIcon />}</span>
+              </TenseInfo>
+            </h2>
             <ul className="m-0 flex list-none flex-col gap-2 p-0">
               {rows.map((t) => {
                 const next = nextLevel(t.correct);
@@ -108,6 +118,7 @@ async function Verb({ params }: { params: PageProps<"/verbs/[verb]">["params"] }
                           {next ? `/${next.at}` : ""}
                         </span>
                       </span>
+                      <span className="-mt-1.5 truncate text-[13px] text-fg-muted">“{t.meaning}”</span>
                       <ProgressBar value={t.correct / MASTERED} label={`${t.nameEn}: ${t.correct} of ${MASTERED} right`} />
                     </Link>
                   </li>

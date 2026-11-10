@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { TENSES } from "@/content/tenses";
 import { VerbChallenge } from "@/components/verbs/verb-challenge";
-import { planVerbChallenge, VERB_SETS, type ChallengeOptions, type VerbSet } from "@/data/verbs";
+import { getTaughtTenses, planVerbChallenge, VERB_SETS, type ChallengeOptions, type VerbSet } from "@/data/verbs";
 import { getCurrentUser } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Verb challenge · Aprender Más" };
@@ -29,13 +29,14 @@ async function Challenge({ searchParams }: { searchParams: PageProps<"/verbs/pra
     tenses: one(params.tenses)?.split(",").filter(Boolean),
   };
   const user = await getCurrentUser();
-  const cards = await planVerbChallenge(user.id, options);
+  const [cards, taught] = await Promise.all([planVerbChallenge(user.id, options), getTaughtTenses(user.id)]);
   if (options.verb && !cards.length) notFound();
 
   const tenseName = TENSES.find((t) => t.id === options.tense)?.nameEn;
   const title = options.verb ? (tenseName ? `${options.verb} · ${tenseName}` : `${options.verb} · all tenses`) : SET_TITLES[options.set ?? "common"];
   const backHref = options.verb ? `/verbs/${encodeURIComponent(options.verb)}` : "/verbs";
-  return <VerbChallenge options={options} cards={cards} title={title} backHref={backHref} />;
+  // Keyed by its options, so changing them (the Change sheet) starts a fresh challenge.
+  return <VerbChallenge key={JSON.stringify(options)} options={options} cards={cards} title={title} backHref={backHref} taught={taught} />;
 }
 
 function ChallengeSkeleton() {

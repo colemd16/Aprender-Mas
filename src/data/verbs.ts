@@ -1,10 +1,14 @@
 import "server-only";
 import { and, eq, sql } from "drizzle-orm";
+import { LEVELS } from "@/content/curriculum";
 import { IMPERATIVE_PERSON_LABELS, PERSON_LABELS, PERSONS, type Person } from "@/content/persons";
 import { TENSES, type TenseId } from "@/content/tenses";
+import { PAST_ENGLISH } from "@/content/verb-past-english";
 import { db } from "@/db";
-import { verbForms, verbProgress, verbs } from "@/db/schema";
+import { stepProgress, steps, verbForms, verbProgress, verbs } from "@/db/schema";
 import { gradeForm, type FormExercise } from "@/domain/grading/form-grader";
+import { findActiveStep } from "@/domain/progress/journey";
+import { englishMeaning, verbEnglish, type VerbEnglish } from "@/domain/verbs/english";
 import type { AccentMode, GradeResult } from "@/domain/grading/types";
 import { levelFor, masteryShare, planVerbCards, verbLevel, type PlannedVerbCard, type VerbLevel } from "@/domain/verbs/mastery";
 
@@ -20,6 +24,7 @@ export const VERB_SETS: VerbSet[] = ["common", "irregular", "started", "all"];
 type CatalogVerb = {
   infinitive: string;
   english: string;
+  parts: VerbEnglish; // for saying what each form means
   rank: number | null;
   irregular: boolean;
   tenses: { tenseId: TenseId; persons: Person[]; irregular: boolean }[];
@@ -32,7 +37,15 @@ let catalog: Promise<Map<string, CatalogVerb>> | undefined;
 function getCatalog() {
   catalog ??= (async () => {
     const [verbRows, tenseRows] = await Promise.all([
-      db.select({ infinitive: verbs.infinitive, english: verbs.english, rank: verbs.frequencyRank }).from(verbs),
+      db
+        .select({
+          infinitive: verbs.infinitive,
+          english: verbs.english,
+          gerund: verbs.gerundEnglish,
+          participle: verbs.pastParticipleEnglish,
+          rank: verbs.frequencyRank,
+        })
+        .from(verbs),
       db
         .select({
           infinitive: verbForms.infinitive,
@@ -44,7 +57,10 @@ function getCatalog() {
         .groupBy(verbForms.infinitive, verbForms.tenseId),
     ]);
     const map = new Map<string, CatalogVerb>();
-    for (const v of verbRows) map.set(v.infinitive, { infinitive: v.infinitive, english: v.english, rank: v.rank, irregular: false, tenses: [] });
+    for (const v of verbRows) {
+      const parts = verbEnglish({ english: v.english, gerund: v.gerund, participle: v.participle, past: PAST_ENGLISH[v.infinitive] });
+      map.set(v.infinitive, { infinitive: v.infinitive, english: v.english, parts, rank: v.rank, irregular: false, tenses: [] });
+    }
     for (const t of tenseRows) {
       const v = map.get(t.infinitive);
       if (!v || !TENSE.has(t.tenseId)) continue;
@@ -115,6 +131,8 @@ export async function getVerbDetail(userId: string, infinitive: string) {
     const def = TENSE.get(t.tenseId)!;
     return {
       tenseId: t.tenseId,
+      // What the tense means with this verb, said for yo (tú for commands, which have no yo).
+      meaning: englishMeaning(verb.parts, t.tenseId, t.persons.includes("1s") ? "1s" : "2s"),
       nameEn: def.nameEn,
       nameEs: def.nameEs,
       mood: def.mood,
@@ -145,6 +163,7 @@ export type VerbCard = {
   tenseNameEs: string;
   person: Person;
   personLabel: string;
+  meaning: string; // what the form means: "(if) you spoke"
   correct: number; // right answers so far for this verb in this tense
 };
 
@@ -185,6 +204,7 @@ export async function planVerbChallenge(userId: string, options: ChallengeOption
       tenseNameEs: def.nameEs,
       person: c.person,
       personLabel: labels[c.person],
+      meaning: englishMeaning(all.get(c.infinitive)!.parts, c.tenseId, c.person),
       correct: progress.map.get(c.infinitive)?.get(c.tenseId) ?? 0,
     };
   });
@@ -243,4 +263,21 @@ export async function gradeVerbAnswer(
     tenseLevelUp: now && now !== was ? now : null,
     verbLevelUp: verbNow && verbNow !== verbWas ? verbNow : null,
   };
+}
+
+// Tenses the journey has taught so far: those in completed steps and the step in progress.
+export async function getTaughtTenses(userId: string): Promise<TenseId[]> {
+  const [allSteps, done] = await Promise.all([
+    db.select({ id: steps.id, levelId: steps.levelId, position: steps.position }).from(steps),
+    db
+      .select({ stepId: stepProgress.stepId })
+      .from(stepProgress)
+      .where(and(eq(stepProgress.userId, userId), eq(stepProgress.status, "completed"))),
+  ]);
+  const reached = new Set(done.map((d) => d.stepId));
+  const active = findActiveStep(allSteps, reached);
+  if (active) reached.add(active.id);
+  const taught = new Set<TenseId>();
+  for (const level of LEVELS) for (const step of level.steps) if (reached.has(step.id)) for (const t of step.forms?.tenses ?? []) taught.add(t);
+  return TENSES.map((t) => t.id).filter((id) => taught.has(id));
 }
