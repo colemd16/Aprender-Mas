@@ -17,6 +17,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Wordmark } from "@/components/ui/wordmark";
 import { levelFor, nextLevel } from "@/domain/verbs/mastery";
 import { ChallengePicker, useChallengeChoice } from "./challenge-picker";
+import { SentenceSheet } from "./sentence-sheet";
 import { InfoIcon, TenseInfo } from "./tense-guide";
 
 type Feedback = Extract<VerbFeedback, { ok: true }>;
@@ -74,6 +75,10 @@ export function VerbChallenge({
   const [counts, setCounts] = useState(() => new Map(cards.map((c) => [countKey(c), c.correct])));
   const [tally, setTally] = useState({ right: 0, answered: 0, run: 0 });
   const [toast, setToast] = useState<{ text: string; big: boolean; id: number } | null>(null);
+  // The form answered most recently, for "Use it in a sentence" (it outlasts a right
+  // answer's quick move to the next card).
+  const [lastAnswered, setLastAnswered] = useState<{ card: VerbCard; form: string } | null>(null);
+  const [writing, setWriting] = useState(false);
   const [, startTransition] = useTransition();
   const inputRef = useRef<HTMLInputElement>(null);
   const fetching = useRef(false);
@@ -139,6 +144,7 @@ export function VerbChallenge({
       }
       const right = res.verdict !== "incorrect";
       setFeedback(res);
+      setLastAnswered({ card, form: res.corrected });
       setCounts((m) => new Map(m).set(countKey(card), res.correct));
       setTally((t) => ({ right: t.right + (right ? 1 : 0), answered: t.answered + 1, run: right ? t.run + 1 : 0 }));
       if (res.verbLevelUp) setToast({ text: `${card.infinitive} is now ${res.verbLevelUp} in every tense`, big: true, id: Date.now() });
@@ -369,6 +375,35 @@ export function VerbChallenge({
               )}
             </div>
 
+            {lastAnswered && (
+              <button
+                type="button"
+                onClick={() => setWriting(true)}
+                className="-mt-2 inline-flex cursor-pointer items-center gap-2 self-start rounded-full border border-white/12 bg-white/[0.03] px-3.5 py-2 text-[13px] text-fg-soft transition-[transform,color,border-color] duration-200 ease-spring hover:border-white/25 hover:text-fg active:scale-95 sm:-mt-3"
+              >
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                </svg>
+                <span>
+                  Use{" "}
+                  <em lang="es" className="text-fg not-italic">
+                    {lastAnswered.form}
+                  </em>{" "}
+                  in a sentence
+                </span>
+              </button>
+            )}
+
             {error && (
               <p role="alert" className="m-0 -mt-2 flex items-center gap-2.5 text-sm text-bad-soft">
                 <Dot className="text-bad" />
@@ -425,6 +460,19 @@ export function VerbChallenge({
           </>
         )}
       </main>
+
+      {lastAnswered && (
+        <SentenceSheet
+          key={lastAnswered.card.key}
+          card={lastAnswered.card}
+          form={lastAnswered.form}
+          open={writing}
+          onClose={() => {
+            setWriting(false);
+            refocus(false);
+          }}
+        />
+      )}
     </div>
   );
 }

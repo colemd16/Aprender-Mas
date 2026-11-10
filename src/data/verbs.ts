@@ -8,8 +8,9 @@ import { db } from "@/db";
 import { stepProgress, steps, verbForms, verbProgress, verbs } from "@/db/schema";
 import { gradeForm, type FormExercise } from "@/domain/grading/form-grader";
 import { findActiveStep } from "@/domain/progress/journey";
-import { englishMeaning, verbEnglish, type VerbEnglish } from "@/domain/verbs/english";
+import { englishMeaning, firstSense, verbEnglish, type VerbEnglish } from "@/domain/verbs/english";
 import type { AccentMode, GradeResult } from "@/domain/grading/types";
+import type { SentenceTarget } from "@/domain/verbs/sentence-check";
 import { levelFor, masteryShare, planVerbCards, verbLevel, type PlannedVerbCard, type VerbLevel } from "@/domain/verbs/mastery";
 
 // Reads and writes for the verb challenge. `userId` must come from getCurrentUser(): this
@@ -280,4 +281,26 @@ export async function getTaughtTenses(userId: string): Promise<TenseId[]> {
   const taught = new Set<TenseId>();
   for (const level of LEVELS) for (const step of level.steps) if (reached.has(step.id)) for (const t of step.forms?.tenses ?? []) taught.add(t);
   return TENSES.map((t) => t.id).filter((id) => taught.has(id));
+}
+
+// Everything the sentence check needs about a card's form: the form itself and its labels.
+export async function getSentenceTarget(card: { infinitive: string; tenseId: string; person: Person }): Promise<SentenceTarget | null> {
+  const verb = (await getCatalog()).get(card.infinitive);
+  const def = TENSE.get(card.tenseId);
+  if (!verb || !def) return null;
+  const [row] = await db
+    .select({ form: verbForms.form, alternates: verbForms.alternates })
+    .from(verbForms)
+    .where(and(eq(verbForms.infinitive, card.infinitive), eq(verbForms.tenseId, card.tenseId), eq(verbForms.person, card.person)));
+  if (!row) return null;
+  const labels = def.mood === "imperative" ? IMPERATIVE_PERSON_LABELS : PERSON_LABELS;
+  return {
+    infinitive: verb.infinitive,
+    english: firstSense(verb.english) ? `to ${firstSense(verb.english)}` : verb.english,
+    form: row.form,
+    alternates: row.alternates,
+    tenseName: def.nameEn.toLowerCase(),
+    personLabel: labels[card.person],
+    meaning: englishMeaning(verb.parts, card.tenseId, card.person),
+  };
 }
