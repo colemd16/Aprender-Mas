@@ -32,12 +32,19 @@ export function SentenceSheet({ card, form, open, onClose }: { card: VerbCard; f
   const fieldRef = useRef<HTMLTextAreaElement>(null);
   const ref = { infinitive: card.infinitive, tenseId: card.tenseId, person: card.person };
 
-  // The box grows with the sentence.
+  // The box grows with the sentence. It can't be measured while the sheet is still closed
+  // (hidden, so it reads as 0 tall), so it's sized again once the sheet is showing.
   useLayoutEffect(() => {
-    const el = fieldRef.current;
-    if (!el) return;
-    el.style.height = "auto";
-    el.style.height = `${el.scrollHeight}px`;
+    const fit = () => {
+      const el = fieldRef.current;
+      if (!el || !el.offsetParent) return;
+      el.style.height = "auto";
+      el.style.height = `${el.scrollHeight}px`;
+    };
+    fit();
+    if (!open) return;
+    const frame = requestAnimationFrame(fit);
+    return () => cancelAnimationFrame(frame);
   }, [text, open]);
 
   function check(anyway = false) {
@@ -93,7 +100,7 @@ export function SentenceSheet({ card, form, open, onClose }: { card: VerbCard; f
         <textarea
           id="sentence"
           ref={fieldRef}
-          rows={2}
+          rows={3}
           lang="es"
           autoFocus
           value={text}
@@ -111,7 +118,7 @@ export function SentenceSheet({ card, form, open, onClose }: { card: VerbCard; f
           enterKeyHint="send"
           autoCapitalize="sentences"
           placeholder={`Escribe una oración con “${form}”…`}
-          className="block w-full resize-none overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-[17px] leading-normal text-fg outline-none transition-colors duration-200 placeholder:text-fg-faint focus:border-white/25"
+          className="block min-h-[104px] w-full resize-none overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-[17px] leading-normal text-fg outline-none transition-colors duration-200 placeholder:text-fg-faint focus:border-white/25"
         />
         <div className="flex flex-wrap gap-2.5">
           <Button type="submit" size="lg" disabled={!text.trim() || checking} className="flex-1 sm:flex-none">
