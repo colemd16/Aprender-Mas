@@ -1,169 +1,122 @@
 import Link from "next/link";
 import { Suspense } from "react";
-import { LevelTrack } from "@/components/journey/level-track";
-import { StepCard } from "@/components/journey/step-card";
-import { ButtonLink } from "@/components/ui/button";
-import { Dock } from "@/components/ui/dock";
+import { buttonClasses } from "@/components/ui/button";
 import { Pill } from "@/components/ui/pill";
-import { SubmitButton } from "@/components/ui/submit-button";
+import { ProgressBar } from "@/components/ui/progress-bar";
+import { SignOutButton } from "@/components/ui/sign-out-button";
 import { TopBar } from "@/components/ui/top-bar";
 import { Wordmark } from "@/components/ui/wordmark";
 import { getJourney } from "@/data/journey";
+import { getVerbOverview } from "@/data/verbs";
+import { MASTERED } from "@/domain/verbs/mastery";
 import { getCurrentUser } from "@/lib/auth";
-import { startPractice } from "./practice/actions";
-import { signOut } from "./login/actions";
 
-export default function JourneyPage({ searchParams }: PageProps<"/">) {
+// Conjugations that cycle on the Verbs card; each gets a 3-second slot in a 12s loop.
+const TICKER = [
+  { verb: "hablar", form: "hablamos" },
+  { verb: "tener", form: "tuvieron" },
+  { verb: "ir", form: "iremos" },
+  { verb: "decir", form: "dijiste" },
+];
+
+// Home: the two ways to practice, picked every time the app opens — the journey (grammar
+// fundamentals, step by step) or the verb challenge (conjugation by repetition).
+export default function HomePage() {
   return (
     <div className="spotlight flex min-h-app flex-col">
-      <Suspense fallback={<JourneySkeleton />}>
-        <Journey searchParams={searchParams} />
-      </Suspense>
+      <TopBar>
+        <Wordmark />
+        <SignOutButton />
+      </TopBar>
+      <main className="mx-auto flex w-full max-w-[1000px] flex-1 flex-col gap-6 px-4 pt-6 pb-12 sm:justify-center sm:gap-9 sm:px-8 sm:pb-20">
+        <div className="flex animate-rise flex-col gap-2">
+          <span lang="es" className="font-mono text-xs tracking-[0.06em] text-fg-muted">
+            ¿QUÉ PRACTICAMOS HOY?
+          </span>
+          <h1 className="m-0 text-[34px] leading-[1.05] font-semibold tracking-[-0.04em] sm:text-[52px]">Pick a path</h1>
+        </div>
+        <Suspense fallback={<PathsSkeleton />}>
+          <Paths />
+        </Suspense>
+      </main>
     </div>
   );
 }
 
-async function Journey({ searchParams }: { searchParams: PageProps<"/">["searchParams"] }) {
-  const { level } = await searchParams;
+async function Paths() {
   const user = await getCurrentUser();
-  const journey = await getJourney(user.id, Number(level) || undefined);
-  const { currentLevel, viewedLevel, steps, activeStep } = journey;
-  const learnSteps = steps.filter((s) => s.kind === "learn").length;
-  const pastLevel = viewedLevel.id !== currentLevel.id;
-  const stats = (
-    <>
-      <Pill>
-        <span>
-          <span className="font-semibold text-fg">{journey.solidSkills}</span> of {journey.totalSkills} skills solid
-        </span>
-      </Pill>
-      {journey.reviewsDue > 0 && <Pill tone="note">{journey.reviewsDue} reviews due</Pill>}
-    </>
-  );
-  // Picking up where you left off is one tap; a first visit to a step opens its intro.
-  const resume = activeStep?.kind === "learn" && (journey.sessionsByStep[activeStep.id] ?? 0) > 0;
+  const [journey, verbs] = await Promise.all([getJourney(user.id), getVerbOverview(user.id)]);
+  const { currentLevel, activeStep } = journey;
+  const card =
+    "flex animate-rise flex-col gap-4 rounded-[24px] border p-5 text-fg no-underline transition-[transform,border-color] duration-200 ease-spring hover:-translate-y-[3px] active:scale-[0.98] sm:p-7";
 
   return (
-    <>
-      <TopBar>
-        <Wordmark />
-        <div className="flex items-center gap-2.5">
-          <div className="hidden items-center gap-2.5 sm:flex">{stats}</div>
-          <form action={signOut}>
-            <button
-              type="submit"
-              aria-label="Sign out"
-              className="-mr-2 flex size-10 cursor-pointer items-center justify-center rounded-xl text-[13px] font-medium text-fg-soft transition-colors duration-200 hover:text-fg active:text-fg sm:mr-0 sm:h-9 sm:w-auto sm:px-3"
-            >
-              <svg
-                width="19"
-                height="19"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-                className="sm:hidden"
-              >
-                <path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l5-5-5-5M15 12H4" />
-              </svg>
-              <span className="hidden sm:inline">Sign out</span>
-            </button>
-          </form>
-        </div>
-      </TopBar>
-
-      <main className="mx-auto flex w-full max-w-[1120px] flex-col gap-6 px-4 pt-4 pb-32 sm:gap-10 sm:px-8 sm:pt-6 sm:pb-12">
-        <LevelTrack levels={journey.levels} viewedId={viewedLevel.id} />
-
-        <div key={viewedLevel.id} className="flex animate-rise flex-col gap-2.5">
-          <span className="font-mono text-xs tracking-[0.06em] text-fg-muted">
-            LEVEL {viewedLevel.id}
-            {pastLevel && " · COMPLETE"}
-            {activeStep?.kind === "learn" && ` · STEP ${activeStep.position} OF ${learnSteps}`}
-            {activeStep?.kind === "checkpoint" && " · CHECKPOINT"}
+    <div className="grid gap-3 sm:grid-cols-2 sm:gap-4">
+      <Link href="/journey" className={`${card} border-accent/35 bg-accent/[0.07] [animation-delay:80ms] hover:border-accent/60`}>
+        <span className="font-mono text-xs tracking-[0.06em] text-accent">JOURNEY · FUNDAMENTALS</span>
+        <div className="flex flex-col gap-1.5">
+          <span className="text-[28px] leading-[1.08] font-semibold tracking-[-0.03em] sm:text-[32px]">
+            Level {currentLevel.id} · {currentLevel.title}
           </span>
-          <h1 className="m-0 text-[34px] leading-[1.05] font-semibold tracking-[-0.04em] sm:text-[52px]">{viewedLevel.title}</h1>
-          <p className="m-0 text-[15px] leading-relaxed text-fg-muted sm:text-base">
-            {viewedLevel.summary}
-            {pastLevel && (
+          <span className="text-[15px] text-fg-muted">
+            {activeStep ? (
               <>
-                {" "}
-                <Link href="/" className="text-accent no-underline hover:text-accent-bright">
-                  Back to Level {currentLevel.id} →
-                </Link>
-              </>
-            )}
-          </p>
-          <div className="flex flex-wrap gap-2 pt-1 sm:hidden">{stats}</div>
-        </div>
-
-        <ol key={`steps-${viewedLevel.id}`} className="m-0 grid list-none grid-cols-[repeat(auto-fit,minmax(230px,1fr))] gap-2.5 p-0 sm:gap-3">
-          {steps.map((step, i) => (
-            <StepCard
-              key={step.id}
-              step={step}
-              index={i}
-              solid={step.state === "active" ? journey.activeStepSolid : 0}
-              sessions={journey.sessionsByStep[step.id] ?? 0}
-            />
-          ))}
-        </ol>
-      </main>
-
-      {activeStep && (
-        <Dock className="sm:hidden">
-          {resume ? (
-            <form action={startPractice.bind(null, activeStep.id)}>
-              <SubmitButton size="lg" pendingLabel="Starting" className="w-full">
-                Continue ·{" "}
-                <span lang="es" className="min-w-0 truncate">
+                {activeStep.kind === "checkpoint" ? "Checkpoint" : `Step ${activeStep.position}`}:{" "}
+                <span lang="es" className="text-fg-soft">
                   {activeStep.title}
-                </span>{" "}
-                <span aria-hidden="true">→</span>
-              </SubmitButton>
-            </form>
-          ) : (
-            <ButtonLink href={`/steps/${activeStep.id}`} size="lg" className="w-full">
-              {activeStep.kind === "checkpoint" ? "Take the checkpoint" : "Start"} ·{" "}
-              <span lang="es" className="min-w-0 truncate">
-                {activeStep.title}
-              </span>{" "}
-              <span aria-hidden="true">→</span>
-            </ButtonLink>
-          )}
-        </Dock>
-      )}
-    </>
+                </span>
+              </>
+            ) : (
+              "Every step done"
+            )}
+          </span>
+        </div>
+        <div className="flex items-center gap-3">
+          <ProgressBar value={journey.totalSkills ? journey.solidSkills / journey.totalSkills : 0} label="Skills solid" className="flex-1" />
+          <span className="font-mono text-xs text-fg-muted">
+            {journey.solidSkills}/{journey.totalSkills} skills
+          </span>
+        </div>
+        {journey.reviewsDue > 0 && (
+          <Pill tone="note" className="self-start">
+            {journey.reviewsDue} reviews due
+          </Pill>
+        )}
+        <span className={buttonClasses({ variant: "primary", size: "lg", className: "mt-auto w-full sm:w-auto sm:self-start" })}>
+          Continue <span aria-hidden="true">→</span>
+        </span>
+      </Link>
+
+      <Link href="/verbs" className={`${card} border-note/30 bg-note/[0.07] [animation-delay:160ms] hover:border-note/55`}>
+        <span className="font-mono text-xs tracking-[0.06em] text-note">VERBS · CONJUGATION CHALLENGE</span>
+        <div className="flex flex-col gap-1.5">
+          <span className="text-[28px] leading-[1.08] font-semibold tracking-[-0.03em] sm:text-[32px]">Every verb, every tense</span>
+          <span className="text-[15px] text-fg-muted">
+            {verbs.started
+              ? `${verbs.started} verb${verbs.started === 1 ? "" : "s"} started · ${verbs.mastered} mastered`
+              : `${verbs.verbs.length} verbs. Master one with ${MASTERED} right in every tense.`}
+          </span>
+        </div>
+        <div aria-hidden="true" lang="es" className="grid h-9 overflow-hidden font-mono text-[17px]">
+          {TICKER.map((t, i) => (
+            <span key={t.verb} className="animate-phrase-cycle [grid-area:1/1] self-center opacity-0" style={{ animationDelay: `${i * 3}s` }}>
+              <span className="text-fg-muted">{t.verb}</span> <span className="text-fg-subtle">→</span> <span className="text-note">{t.form}</span>
+            </span>
+          ))}
+        </div>
+        <span className={buttonClasses({ variant: "light", size: "lg", className: "mt-auto w-full sm:w-auto sm:self-start" })}>
+          {verbs.started ? "Keep conjugating" : "Start a challenge"} <span aria-hidden="true">→</span>
+        </span>
+      </Link>
+    </div>
   );
 }
 
-// Shown for the moment it takes to read the session and load progress.
-function JourneySkeleton() {
+function PathsSkeleton() {
   return (
-    <>
-      <TopBar>
-        <Wordmark />
-      </TopBar>
-      <main
-        aria-busy="true"
-        aria-label="Loading your journey"
-        className="mx-auto flex w-full max-w-[1120px] flex-col gap-6 px-4 pt-4 sm:gap-10 sm:px-8 sm:pt-6"
-      >
-        <div className="h-[66px] animate-pulse rounded-2xl bg-white/[0.03]" />
-        <div className="flex flex-col gap-3">
-          <div className="h-3 w-40 animate-pulse rounded bg-white/[0.05]" />
-          <div className="h-12 w-[min(480px,80%)] animate-pulse rounded-xl bg-white/[0.05]" />
-        </div>
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(230px,1fr))] gap-3">
-          <div className="col-span-full h-[180px] animate-pulse rounded-[20px] bg-white/[0.04]" />
-          {[0, 1, 2].map((i) => (
-            <div key={i} className="h-[120px] animate-pulse rounded-[20px] bg-white/[0.03]" />
-          ))}
-        </div>
-      </main>
-    </>
+    <div aria-busy="true" aria-label="Loading" className="grid gap-3 sm:grid-cols-2 sm:gap-4">
+      <div className="h-[260px] animate-pulse rounded-[24px] bg-white/[0.04]" />
+      <div className="h-[260px] animate-pulse rounded-[24px] bg-white/[0.03]" />
+    </div>
   );
 }

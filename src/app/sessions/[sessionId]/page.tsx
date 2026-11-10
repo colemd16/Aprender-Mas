@@ -80,7 +80,7 @@ async function Review({ params }: { params: PageProps<"/sessions/[sessionId]">["
 }
 
 // Back goes to the step the session was in (or the journey, for a checkpoint).
-function ReviewBar({ back = { href: "/", label: "Journey" } }: { back?: { href: string; label: string } }) {
+function ReviewBar({ back = { href: "/journey", label: "Journey" } }: { back?: { href: string; label: string } }) {
   return (
     <TopBar>
       <BackLink href={back.href}>{back.label}</BackLink>

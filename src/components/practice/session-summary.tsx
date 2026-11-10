@@ -91,7 +91,7 @@ export function SessionSummaryView({ sessionId, summary, kind, stepId, stepTitle
 
         <Dock className="[animation-delay:550ms] sm:flex-wrap sm:gap-3">
           {!upNext && (
-            <ButtonLink href="/" variant="primary" size="lg" className="w-full sm:w-auto">
+            <ButtonLink href="/journey" variant="primary" size="lg" className="w-full sm:w-auto">
               Back to journey <span aria-hidden="true">→</span>
             </ButtonLink>
           )}
@@ -102,7 +102,7 @@ export function SessionSummaryView({ sessionId, summary, kind, stepId, stepTitle
               </ButtonLink>
             )}
             {upNext ? (
-              <ButtonLink href="/" variant="secondary" size="lg" className="flex-1 sm:flex-none">
+              <ButtonLink href="/journey" variant="secondary" size="lg" className="flex-1 sm:flex-none">
                 Journey
               </ButtonLink>
             ) : (

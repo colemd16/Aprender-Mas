@@ -62,7 +62,7 @@ export function LevelTrack({ levels, viewedId }: { levels: JourneyLevel[]; viewe
                 </span>
               ) : (
                 <Link
-                  href={level.state === "current" ? "/" : `/?level=${level.id}`}
+                  href={level.state === "current" ? "/journey" : `/journey?level=${level.id}`}
                   aria-label={`Level ${level.id}, ${stateLabel[level.state]}`}
                   aria-current={viewed ? "page" : undefined}
                   className="group relative flex flex-col items-center gap-2.5 rounded-xl text-fg no-underline sm:gap-3"

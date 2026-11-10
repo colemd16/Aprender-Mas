@@ -23,8 +23,7 @@ import { authenticatedRole, authUid, authUsers } from "drizzle-orm/supabase";
 // users; personal tables only expose rows whose user_id matches the signed-in user.
 // The app's own server code connects as the database owner and bypasses these rules,
 // so it must always filter by user id itself (see src/lib/auth.ts).
-const readableBySignedInUsers = () =>
-  pgPolicy("signed-in users can read", { for: "select", to: authenticatedRole, using: sql`true` });
+const readableBySignedInUsers = () => pgPolicy("signed-in users can read", { for: "select", to: authenticatedRole, using: sql`true` });
 
 const ownRowsOnly = () =>
   pgPolicy("users manage their own rows", {
@@ -94,7 +93,10 @@ export const verbForms = pgTable(
     person: personEnum("person").notNull(),
     form: text("form").notNull(),
     // Other correct forms: -se imperfect subjunctive, attached reflexive pronouns.
-    alternates: text("alternates").array().notNull().default(sql`'{}'::text[]`),
+    alternates: text("alternates")
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
     isIrregular: boolean("is_irregular").notNull(),
   },
   (t) => [primaryKey({ columns: [t.infinitive, t.tenseId, t.person] }), readableBySignedInUsers()],
@@ -141,10 +143,7 @@ export const skills = pgTable(
       columns: [t.infinitive, t.tenseId, t.person],
       foreignColumns: [verbForms.infinitive, verbForms.tenseId, verbForms.person],
     }),
-    check(
-      "form_skills_have_a_form",
-      sql`(${t.kind} = 'form') = (${t.infinitive} is not null and ${t.tenseId} is not null and ${t.person} is not null)`,
-    ),
+    check("form_skills_have_a_form", sql`(${t.kind} = 'form') = (${t.infinitive} is not null and ${t.tenseId} is not null and ${t.person} is not null)`),
     readableBySignedInUsers(),
   ],
 );
@@ -363,7 +362,9 @@ export const attemptSkillResults = pgTable(
   },
   (t) => [
     primaryKey({ columns: [t.attemptId, t.skillId] }),
-    foreignKey({ name: "attempt_skill_results_attempt_fk", columns: [t.attemptId, t.userId], foreignColumns: [attempts.id, attempts.userId] }).onDelete("cascade"),
+    foreignKey({ name: "attempt_skill_results_attempt_fk", columns: [t.attemptId, t.userId], foreignColumns: [attempts.id, attempts.userId] }).onDelete(
+      "cascade",
+    ),
     ownRowsOnly(),
   ],
 );
@@ -417,6 +418,28 @@ export const skillStates = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.userId, t.skillId] }), index("skill_states_due").on(t.userId, t.due), ownRowsOnly()],
+);
+
+// The verb challenge: correct answers for one verb in one tense (any person). A verb's
+// level is its weakest tense — 50 correct in every tense is mastered. Separate from
+// skill states: the challenge never moves the journey along.
+export const verbProgress = pgTable(
+  "verb_progress",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => profiles.id, { onDelete: "cascade" }),
+    infinitive: text("infinitive")
+      .notNull()
+      .references(() => verbs.infinitive),
+    tenseId: text("tense_id")
+      .notNull()
+      .references(() => tenses.id),
+    correct: integer("correct").notNull().default(0),
+    attempts: integer("attempts").notNull().default(0),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.infinitive, t.tenseId] }), ownRowsOnly()],
 );
 
 // Questions asked about an answer's feedback ("why estaba and not estuve?"), with the

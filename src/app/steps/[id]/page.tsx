@@ -20,7 +20,7 @@ export default function StepPage({ params }: PageProps<"/steps/[id]">) {
   return (
     <div className="flex min-h-app flex-col bg-[radial-gradient(900px_420px_at_70%_30%,rgb(252_209_22/0.06),transparent_70%),radial-gradient(900px_520px_at_10%_0%,rgb(0_56_147/0.4),transparent_70%)]">
       <TopBar>
-        <BackLink href="/">
+        <BackLink href="/journey">
           <span className="sm:hidden">Journey</span>
           <span className="hidden sm:inline">Back to journey</span>
         </BackLink>
@@ -42,7 +42,7 @@ async function StepIntro({ params }: { params: PageProps<"/steps/[id]">["params"
     getStepSkillProgress(user.id, id),
   ]);
   if (!step) notFound();
-  if (step.state === "upcoming") redirect("/");
+  if (step.state === "upcoming") redirect("/journey");
 
   const isCheckpoint = step.kind === "checkpoint";
   const eyebrow = isCheckpoint ? `LEVEL ${step.levelId} · CHECKPOINT` : `LEVEL ${step.levelId} · STEP ${step.position} OF ${step.learnStepCount}`;

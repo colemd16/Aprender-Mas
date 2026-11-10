@@ -612,7 +612,7 @@ function EmptySession() {
     <div className="glass-subtle flex flex-col items-start gap-4 rounded-[22px] p-6 sm:p-8">
       <h1 className="m-0 text-2xl font-semibold tracking-[-0.03em]">Nothing to practice here right now</h1>
       <p className="m-0 text-fg-muted">There aren&apos;t any questions ready for this step yet.</p>
-      <Link href="/" className="text-accent">
+      <Link href="/journey" className="text-accent">
         Back to journey
       </Link>
     </div>

@@ -35,7 +35,7 @@ const ERROR_NAMES = new Map(ERROR_TYPES.map((e) => [e.id, e.name]));
 export async function startPractice(stepId: string) {
   const user = await getCurrentUser();
   const step = await canOpenStep(user.id, stepId);
-  if (!step) redirect("/");
+  if (!step) redirect("/journey");
   const sessionId = await startSession(user.id, step.kind === "checkpoint" ? "checkpoint" : "learn", stepId);
   redirect(`/practice/${sessionId}`);
 }
@@ -147,7 +147,7 @@ export type SessionSummary = {
 export async function finishSession(sessionId: string): Promise<SessionSummary> {
   const user = await getCurrentUser();
   const session = await getOwnedSession(user.id, sessionId);
-  if (!session) redirect("/");
+  if (!session) redirect("/journey");
 
   const rows = await db
     .select({ verdict: attempts.verdict })
