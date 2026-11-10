@@ -51,7 +51,7 @@ async function Paths() {
     "flex animate-rise flex-col gap-4 rounded-[24px] border p-5 text-fg no-underline transition-[transform,border-color] duration-200 ease-spring hover:-translate-y-[3px] active:scale-[0.98] sm:p-7";
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2 sm:gap-4">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
       <Link href="/journey" className={`${card} border-accent/35 bg-accent/[0.07] [animation-delay:80ms] hover:border-accent/60`}>
         <span className="font-mono text-xs tracking-[0.06em] text-accent">JOURNEY · FUNDAMENTALS</span>
         <div className="flex flex-col gap-1.5">

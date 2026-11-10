@@ -150,7 +150,7 @@ export function VerbsHub({ verbs }: { verbs: VerbListItem[] }) {
             />
           </label>
         </div>
-        <ul className="m-0 grid list-none gap-2 p-0 sm:grid-cols-2">
+        <ul className="m-0 grid list-none grid-cols-1 gap-2 p-0 sm:grid-cols-2">
           {listed.slice(0, shown).map((v) => (
             <li key={v.infinitive}>
               <Link
