@@ -33,8 +33,11 @@ function frameFor(card: VerbCard) {
   const frames = TENSE_GUIDES[card.tenseId]?.frames ?? [];
   if (!frames.length) return null;
   const hash = [...card.key].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) >>> 0, 7);
-  return fillFrame(frames[hash % frames.length], card.person);
+  return fillFrame(frames[hash % frames.length], card.personLabel);
 }
+
+// "she used to play / was playing" → "She used to play / was playing" ("(if) you spoke" stays).
+const headline = (meaning: string) => meaning.charAt(0).toUpperCase() + meaning.slice(1);
 
 function Frame({ text }: { text: string }) {
   const [before, after] = text.split("___");
@@ -278,31 +281,35 @@ export function VerbChallenge({
           </div>
         ) : (
           <>
-            <div key={card.key} className="flex animate-rise flex-col items-start gap-3 sm:gap-4">
-              <div className="flex flex-wrap gap-2">
-                <TenseInfo
-                  tenseIds={[card.tenseId]}
-                  title="When it's used"
-                  meaning={card.meaning}
-                  taught={taught}
-                  onOpenChange={refocus}
-                  className="inline-flex cursor-pointer items-center gap-1.5 rounded-full bg-accent/12 px-3.5 py-1.5 text-[13px] font-medium text-accent-bright transition-[transform,background] duration-200 ease-spring hover:bg-accent/20 active:scale-95"
-                >
-                  {card.tenseName} <InfoIcon />
-                </TenseInfo>
-                <Pill>
-                  <span lang="es">{card.personLabel}</span>
-                </Pill>
+            {/* What to say is the headline, in English: reading it and answering in Spanish is the
+                closest thing here to speaking. The verb, who it's about, the tense and a cue
+                back it up. */}
+            <div key={card.key} className="flex animate-rise flex-col items-start gap-2.5 sm:gap-3.5">
+              <h1 className="m-0 text-[32px] leading-[1.1] font-semibold tracking-[-0.035em] text-balance sm:text-[52px]">{headline(card.meaning)}</h1>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                <span className="flex items-baseline gap-2">
+                  <span lang="es" className="text-[20px] font-semibold tracking-[-0.02em] text-accent-bright sm:text-2xl">
+                    {card.infinitive}
+                  </span>
+                  <span className="text-[14px] text-fg-muted sm:text-base">{card.english}</span>
+                </span>
+                <span className="flex flex-wrap gap-2">
+                  <Pill className="py-1">
+                    <span lang="es">{card.personLabel}</span>
+                  </Pill>
+                  <TenseInfo
+                    tenseIds={[card.tenseId]}
+                    title="When it's used"
+                    meaning={card.meaning}
+                    taught={taught}
+                    onOpenChange={refocus}
+                    className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.04] px-3 py-1 text-[13px] font-medium text-fg-soft transition-[transform,color,border-color] duration-200 ease-spring hover:border-white/20 hover:text-fg active:scale-95"
+                  >
+                    {card.tenseName} <InfoIcon />
+                  </TenseInfo>
+                </span>
               </div>
-              <h1 className="m-0 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[40px] leading-none font-semibold tracking-[-0.04em] sm:gap-x-4 sm:text-[64px]">
-                <span lang="es">{card.infinitive}</span>
-                <span className="text-base font-normal tracking-normal text-fg-muted sm:text-xl">{card.english}</span>
-              </h1>
-              {/* A cue that calls for the tense, and what this exact form means. */}
-              <div className="flex flex-col gap-1">
-                {frameFor(card) && <Frame text={frameFor(card)!} />}
-                <p className="m-0 text-[14px] text-fg-muted sm:text-[15px]">“{card.meaning}”</p>
-              </div>
+              {frameFor(card) && <Frame text={frameFor(card)!} />}
             </div>
 
             <div className="relative">

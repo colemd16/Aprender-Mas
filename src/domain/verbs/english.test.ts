@@ -23,7 +23,7 @@ test("indicative tenses agree with their subject", () => {
   assert.equal(englishMeaning(canDo, "ind_preterite", "3p"), "they were able");
   assert.equal(englishMeaning(speak, "ind_present_perfect", "3s"), "he/she has spoken");
   assert.equal(englishMeaning(speak, "per_ir_a_imperfect", "2s"), "you were going to speak");
-  assert.equal(englishMeaning(speak, "ind_imperfect", "1s"), "I used to speak, was speaking");
+  assert.equal(englishMeaning(speak, "ind_imperfect", "1s"), "I used to speak / was speaking");
 });
 
 test("subjunctives read like English's own", () => {
@@ -32,6 +32,16 @@ test("subjunctives read like English's own", () => {
   assert.equal(englishMeaning(be, "sub_imperfect", "1s"), "(if) I were");
   assert.equal(englishMeaning(speak, "sub_pluperfect", "1p"), "(if) we had spoken");
   assert.equal(englishMeaning(wake, "sub_present_perfect", "3s"), "(that) he/she have woken up");
+});
+
+test("a named subject sets the agreement: usted is 'you', ustedes 'you all'", () => {
+  assert.equal(englishMeaning(speak, "ind_present", "3s", "she"), "she speaks");
+  assert.equal(englishMeaning(speak, "ind_present", "3s", "you"), "you speak");
+  assert.equal(englishMeaning(be, "ind_present", "3s", "you"), "you are");
+  assert.equal(englishMeaning(speak, "ind_present_perfect", "3s", "you"), "you have spoken");
+  assert.equal(englishMeaning(canDo, "ind_preterite", "3s", "you"), "you were able");
+  assert.equal(englishMeaning(speak, "ind_imperfect", "3p", "you all"), "you all used to speak / were speaking");
+  assert.equal(englishMeaning(speak, "imp_negative", "3s", "you"), "Don't speak!");
 });
 
 test("commands", () => {

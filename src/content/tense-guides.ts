@@ -4,8 +4,8 @@ import type { TenseId } from "./tenses";
 // verb challenge so a right answer comes with knowing when you'd say it.
 // Latin American usage (no vosotros), tú-first, in an everyday Colombian voice.
 //
-// `frames` are cues that call for the tense: "___" is the answer, {p} the subject pronoun
-// for the card's person (yo, tú, ella, nosotros, ellos) and {P} the same, capitalized.
+// `frames` are cues that call for the tense: "___" is the answer, {p} the card's subject
+// (yo, tú, ella, usted, nosotros, ustedes…) and {P} the same, capitalized.
 // They must read naturally with any verb, so they only set the scene.
 
 export type TenseGuide = {
@@ -196,10 +196,7 @@ export const TENSE_GUIDES: Record<TenseId, TenseGuide> = {
   },
 };
 
-const PRONOUNS = { "1s": "yo", "2s": "tú", "3s": "ella", "1p": "nosotros", "3p": "ellos" } as const;
-
-// A frame for a card, with the subject filled in: "Si tú ___, todo sería distinto".
-export function fillFrame(frame: string, person: keyof typeof PRONOUNS) {
-  const p = PRONOUNS[person];
-  return frame.replaceAll("{p}", p).replaceAll("{P}", p.charAt(0).toUpperCase() + p.slice(1));
+// A frame for a card, with its subject filled in: "Si tú ___, todo sería distinto".
+export function fillFrame(frame: string, pronoun: string) {
+  return frame.replaceAll("{p}", pronoun).replaceAll("{P}", pronoun.charAt(0).toUpperCase() + pronoun.slice(1));
 }

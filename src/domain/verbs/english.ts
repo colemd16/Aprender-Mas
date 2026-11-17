@@ -40,6 +40,15 @@ export function verbEnglish(gloss: { english: string; gerund: string; participle
 }
 
 const SUBJECT: Record<Person, string> = { "1s": "I", "2s": "you", "3s": "he/she", "1p": "we", "3p": "they" };
+
+// Which English verb form a subject takes: "you" (tú or usted) agrees like tú, "you all"
+// and "they" like any plural, "he" / "she" like él.
+function agreesWith(subject: string): Person {
+  if (subject === "I") return "1s";
+  if (subject === "you") return "2s";
+  if (subject === "he" || subject === "she" || subject === "he/she") return "3s";
+  return "1p";
+}
 const singular = (p: Person) => p === "1s" || p === "3s";
 
 function thirdPerson(word: string) {
@@ -63,8 +72,11 @@ const past = (v: VerbEnglish, p: Person) => onHead(v.past, (w) => (w === "was" &
 
 const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
-export function englishMeaning(v: VerbEnglish, tenseId: string, p: Person): string {
-  const s = SUBJECT[p];
+// `subject` names who it is in English ("she", "you", "you all"); by default it follows the
+// person ("he/she" for él / ella / usted). Commands take no subject.
+export function englishMeaning(v: VerbEnglish, tenseId: string, person: Person, subject?: string): string {
+  const s = subject ?? SUBJECT[person];
+  const p = subject ? agreesWith(subject) : person;
   switch (tenseId) {
     case "ind_present":
       return `${s} ${present(v, p)}`;
@@ -75,7 +87,7 @@ export function englishMeaning(v: VerbEnglish, tenseId: string, p: Person): stri
     case "ind_preterite":
       return `${s} ${past(v, p)}`;
     case "ind_imperfect":
-      return `${s} used to ${v.base}, ${bePast(p)} ${v.gerund}`;
+      return `${s} used to ${v.base} / ${bePast(p)} ${v.gerund}`;
     case "per_progressive_imperfect":
       return `${s} ${bePast(p)} ${v.gerund}`;
     case "per_ir_a_imperfect":
@@ -102,9 +114,9 @@ export function englishMeaning(v: VerbEnglish, tenseId: string, p: Person): stri
     case "sub_pluperfect":
       return `(if) ${s} had ${v.participle}`;
     case "imp_affirmative":
-      return p === "1p" ? `Let's ${v.base}!` : `${capitalize(v.base)}!`;
+      return person === "1p" ? `Let's ${v.base}!` : `${capitalize(v.base)}!`;
     case "imp_negative":
-      return p === "1p" ? `Let's not ${v.base}!` : `Don't ${v.base}!`;
+      return person === "1p" ? `Let's not ${v.base}!` : `Don't ${v.base}!`;
     default:
       return `${s} ${v.base}`;
   }

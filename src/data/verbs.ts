@@ -155,6 +155,32 @@ export async function getVerbDetail(userId: string, infinitive: string) {
 
 export type ChallengeOptions = { verb?: string; tense?: string; set?: VerbSet; tenses?: string[] };
 
+// Who a card is about, in both languages. Él, ella and usted share a form (as do ellos,
+// ellas and ustedes), so each card picks one: "she used to play" reads like something
+// you'd say, where "he/she/you" reads like a grammar table. Commands are to tú, usted,
+// ustedes, or "let's" for nosotros.
+const SUBJECTS: Record<Person, { en: string; es: string }[]> = {
+  "1s": [{ en: "I", es: "yo" }],
+  "2s": [{ en: "you", es: "tú" }],
+  "3s": [
+    { en: "he", es: "él" },
+    { en: "she", es: "ella" },
+    { en: "you", es: "usted" },
+  ],
+  "1p": [{ en: "we", es: "nosotros" }],
+  "3p": [
+    { en: "they", es: "ellos" },
+    { en: "they", es: "ellas" },
+    { en: "you all", es: "ustedes" },
+  ],
+};
+
+function subjectFor(person: Person, mood: string) {
+  if (mood === "imperative") return { en: person === "3p" ? "you all" : "you", es: IMPERATIVE_PERSON_LABELS[person] };
+  const options = SUBJECTS[person];
+  return options[Math.floor(Math.random() * options.length)];
+}
+
 export type VerbCard = {
   key: string;
   infinitive: string;
@@ -163,8 +189,8 @@ export type VerbCard = {
   tenseName: string;
   tenseNameEs: string;
   person: Person;
-  personLabel: string;
-  meaning: string; // what the form means: "(if) you spoke"
+  personLabel: string; // the subject this card picked: "ella", "usted"
+  meaning: string; // what the form means, for that subject: "(if) she spoke"
   correct: number; // right answers so far for this verb in this tense
 };
 
@@ -195,7 +221,7 @@ export async function planVerbChallenge(userId: string, options: ChallengeOption
   );
   return plan.map((c, i) => {
     const def = TENSE.get(c.tenseId)!;
-    const labels = def.mood === "imperative" ? IMPERATIVE_PERSON_LABELS : PERSON_LABELS;
+    const subject = subjectFor(c.person, def.mood);
     return {
       key: `${Date.now().toString(36)}-${i}`,
       infinitive: c.infinitive,
@@ -204,8 +230,8 @@ export async function planVerbChallenge(userId: string, options: ChallengeOption
       tenseName: def.nameEn,
       tenseNameEs: def.nameEs,
       person: c.person,
-      personLabel: labels[c.person],
-      meaning: englishMeaning(all.get(c.infinitive)!.parts, c.tenseId, c.person),
+      personLabel: subject.es,
+      meaning: englishMeaning(all.get(c.infinitive)!.parts, c.tenseId, c.person, subject.en),
       correct: progress.map.get(c.infinitive)?.get(c.tenseId) ?? 0,
     };
   });
