@@ -9,7 +9,7 @@ import { getCurrentUser } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Verbs · Aprender Más" };
 
-export default function VerbsPage() {
+export default function VerbsPage({ searchParams }: PageProps<"/verbs">) {
   return (
     <div className="spotlight flex min-h-app flex-col">
       <TopBar>
@@ -26,14 +26,16 @@ export default function VerbsPage() {
           </p>
         </div>
         <Suspense fallback={<HubSkeleton />}>
-          <Hub />
+          <Hub searchParams={searchParams} />
         </Suspense>
       </main>
     </div>
   );
 }
 
-async function Hub() {
+async function Hub({ searchParams }: { searchParams: PageProps<"/verbs">["searchParams"] }) {
+  // ?verb=… (from a verb's page) opens the setup on that verb.
+  const { verb } = await searchParams;
   const user = await getCurrentUser();
   const [overview, taught] = await Promise.all([getVerbOverview(user.id), getTaughtTenses(user.id)]);
   return (
@@ -51,7 +53,11 @@ async function Hub() {
           </span>
         </div>
       )}
-      <VerbsHub verbs={overview.verbs} taught={taught} />
+      <VerbsHub
+        verbs={overview.verbs}
+        taught={taught}
+        initialVerb={typeof verb === "string" && overview.verbs.some((v) => v.infinitive === verb) ? verb : undefined}
+      />
     </>
   );
 }

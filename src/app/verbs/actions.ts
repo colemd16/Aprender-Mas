@@ -6,6 +6,7 @@ import { getAccentMode } from "@/data/practice";
 import { getSentenceTarget, gradeVerbAnswer, planVerbChallenge, VERB_SETS, type ChallengeOptions, type VerbCard } from "@/data/verbs";
 import { diffAnswer, type DiffOp } from "@/domain/grading/diff";
 import type { Verdict } from "@/domain/grading/types";
+import { VERB_LEVELS } from "@/domain/verbs/mastery";
 import { checkSentence, exampleSentence, findForm, SentenceCheckUnavailableError, type SentenceCheck } from "@/domain/verbs/sentence-check";
 import { anthropic, GRADING_MODEL } from "@/lib/anthropic";
 import { getCurrentUser } from "@/lib/auth";
@@ -19,6 +20,7 @@ function cleanOptions(o: ChallengeOptions): ChallengeOptions {
     tense: typeof o.tense === "string" ? o.tense.slice(0, 60) : undefined,
     set: VERB_SETS.includes(o.set as never) ? o.set : undefined,
     tenses: Array.isArray(o.tenses) ? o.tenses.filter((t) => typeof t === "string").slice(0, 30) : undefined,
+    goal: VERB_LEVELS.some((l) => l.at === o.goal) ? o.goal : undefined,
   };
 }
 

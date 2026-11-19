@@ -137,12 +137,14 @@ async function Verb({ params }: { params: PageProps<"/verbs/[verb]">["params"] }
       )}
 
       <Dock className="[animation-delay:200ms]">
-        <ButtonLink href={practice()} size="lg" className="w-full sm:w-auto">
-          Practice{" "}
+        {/* Sets this verb up in the challenge: pick a goal level and the tenses, then practice
+            just this verb until it gets there. */}
+        <ButtonLink href={`/verbs?verb=${encodeURIComponent(verb.infinitive)}#setup`} size="lg" className="w-full sm:w-auto">
+          Master{" "}
           <span lang="es" className="min-w-0 truncate">
             {verb.infinitive}
           </span>{" "}
-          · all tenses <span aria-hidden="true">→</span>
+          <span aria-hidden="true">→</span>
         </ButtonLink>
       </Dock>
     </main>

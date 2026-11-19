@@ -9,13 +9,14 @@ import type { TenseId } from "@/content/tenses";
 import type { ChallengeOptions, VerbCard } from "@/data/verbs";
 import { Explanation } from "@/components/practice/explanation";
 import { Morph } from "@/components/practice/morph";
+import { ButtonLink } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
 import { Dot, Pill } from "@/components/ui/pill";
 import { Sheet } from "@/components/ui/sheet";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { Spinner } from "@/components/ui/spinner";
 import { Wordmark } from "@/components/ui/wordmark";
-import { levelFor, nextLevel } from "@/domain/verbs/mastery";
+import { levelFor, nextLevel, VERB_LEVELS } from "@/domain/verbs/mastery";
 import { ChallengePicker, useChallengeChoice } from "./challenge-picker";
 import { SentenceSheet } from "./sentence-sheet";
 import { InfoIcon, TenseInfo } from "./tense-guide";
@@ -26,7 +27,7 @@ type Phase = "answering" | "checking" | "right" | "wrong";
 const AUTO_NEXT_MS = 650; // a right answer moves on by itself after this long
 const REFILL_AT = 5; // fetch more cards when this few are left
 
-const countKey = (c: Pick<VerbCard, "infinitive" | "tenseId">) => `${c.infinitive}|${c.tenseId}`;
+const countKey = (c: { infinitive: string; tenseId: string }) => `${c.infinitive}|${c.tenseId}`;
 
 // A cue that calls for the card's tense, chosen steadily per card: "Si tú ___, todo sería distinto".
 function frameFor(card: VerbCard) {
@@ -35,6 +36,9 @@ function frameFor(card: VerbCard) {
   const hash = [...card.key].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) >>> 0, 7);
   return fillFrame(frames[hash % frames.length], card.personLabel);
 }
+
+// Mastering one verb: every chosen tense must reach `at` right answers.
+type Goal = { at: number; name: string; tenses: { tenseId: string; nameEn: string; correct: number }[] };
 
 // "she used to play / was playing" → "She used to play / was playing" ("(if) you spoke" stays).
 const headline = (meaning: string) => meaning.charAt(0).toUpperCase() + meaning.slice(1);
@@ -58,15 +62,24 @@ export function VerbChallenge({
   title,
   backHref,
   taught,
+  goal,
 }: {
   options: ChallengeOptions;
   cards: VerbCard[];
   title: string;
   backHref: string;
   taught: TenseId[];
+  goal: Goal | null;
 }) {
   const router = useRouter();
-  const choice = useChallengeChoice();
+  // The Change sheet starts from this challenge, not from what was last remembered.
+  const choice = useChallengeChoice({
+    mode: options.verb ? "verb" : "set",
+    verb: options.verb ?? null,
+    set: options.set,
+    tenses: options.tense ? [options.tense] : options.tenses,
+    goal: options.goal,
+  });
   const [changing, setChanging] = useState(false);
   const mixed = !options.verb;
   const [queue, setQueue] = useState(cards);
@@ -75,7 +88,18 @@ export function VerbChallenge({
   const [phase, setPhase] = useState<Phase>("answering");
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [counts, setCounts] = useState(() => new Map(cards.map((c) => [countKey(c), c.correct])));
+  const [counts, setCounts] = useState(
+    () =>
+      new Map([
+        ...(goal && options.verb ? goal.tenses.map((t) => [countKey({ infinitive: options.verb!, tenseId: t.tenseId }), t.correct] as const) : []),
+        ...cards.map((c) => [countKey(c), c.correct] as const),
+      ]),
+  );
+  // Working toward a goal: how many of the chosen tenses have reached it.
+  const goalCount = (t: { tenseId: string; correct: number }, m = counts) =>
+    m.get(countKey({ infinitive: options.verb ?? "", tenseId: t.tenseId })) ?? t.correct;
+  const goalReached = (m = counts) => !!goal && goal.tenses.every((t) => goalCount(t, m) >= goal.at);
+  const [finished, setFinished] = useState(() => goalReached());
   const [tally, setTally] = useState({ right: 0, answered: 0, run: 0 });
   const [toast, setToast] = useState<{ text: string; big: boolean; id: number } | null>(null);
   // The form answered most recently, for "Use it in a sentence" (it outlasts a right
@@ -87,10 +111,10 @@ export function VerbChallenge({
   const fetching = useRef(false);
   const waiting = useRef(false); // Next was pressed before more cards arrived
   const autoNext = useRef<ReturnType<typeof setTimeout>>(undefined);
-  // Where the queue stands now, for code that runs later (the auto-next timer).
-  const position = useRef({ index: 0, length: cards.length });
+  // Where things stand now, for code that runs later (the auto-next timer).
+  const live = useRef({ index: 0, queue: cards, counts });
   useEffect(() => {
-    position.current = { index, length: queue.length };
+    live.current = { index, queue, counts };
   });
 
   const card = queue[index];
@@ -161,11 +185,21 @@ export function VerbChallenge({
 
   function advance() {
     clearTimeout(autoNext.current);
-    if (position.current.index >= position.current.length - 1) {
+    const { index: at, queue: q, counts: c } = live.current;
+    if (goalReached(c)) {
+      setFinished(true);
+      setFeedback(null);
+      setPhase("answering");
+      return;
+    }
+    // Skip cards for tenses that have reached the goal since they were dealt.
+    let to = at + 1;
+    while (goal && to < q.length && (c.get(countKey(q[to])) ?? q[to].correct) >= goal.at) to++;
+    if (to >= q.length) {
       waiting.current = true;
       return;
     }
-    setIndex((i) => i + 1);
+    setIndex(to);
     setInput("");
     setFeedback(null);
     setPhase("answering");
@@ -204,7 +238,7 @@ export function VerbChallenge({
             <span className="text-ok">{tally.right}</span>/{tally.answered}
           </span>
         </span>
-        {mixed && (
+        {(mixed || goal) && (
           <button
             type="button"
             onClick={() => setChanging(true)}
@@ -234,19 +268,21 @@ export function VerbChallenge({
         </Link>
       </header>
 
-      {mixed && (
+      {(mixed || goal) && (
         <Sheet
           open={changing}
           onClose={() => {
             setChanging(false);
             refocus(false);
           }}
-          title="Verbs and tenses"
+          title={mixed ? "Verbs and tenses" : "Goal and tenses"}
         >
-          <ChallengePicker set={choice.set} tenses={choice.tenses} onSet={choice.setSet} onToggle={choice.toggleTense} taught={taught} />
+          <ChallengePicker choice={choice} taught={taught} />
           <button
             type="button"
+            disabled={!choice.href}
             onClick={() => {
+              if (!choice.href) return;
               setChanging(false);
               router.replace(choice.href);
             }}
@@ -272,7 +308,16 @@ export function VerbChallenge({
       )}
 
       <main className="mx-auto flex w-full max-w-[760px] flex-1 flex-col gap-5 px-4 pt-4 pb-16 sm:justify-center sm:gap-7 sm:px-8 sm:pb-20">
-        {!card ? (
+        {goal && !finished && (
+          <GoalStrip
+            goal={goal}
+            reached={goal.tenses.filter((t) => goalCount(t) >= goal.at).length}
+            done={goal.tenses.reduce((n, t) => n + Math.min(goalCount(t), goal.at), 0)}
+          />
+        )}
+        {goal && finished ? (
+          <GoalReached verb={options.verb!} goal={goal} backHref={backHref} />
+        ) : !card ? (
           <div className="glass-subtle flex flex-col items-start gap-4 rounded-[22px] p-6">
             <h1 className="m-0 text-2xl font-semibold tracking-[-0.03em]">No cards for this challenge</h1>
             <Link href="/verbs" className="text-accent">
@@ -481,5 +526,56 @@ export function VerbChallenge({
         />
       )}
     </div>
+  );
+}
+
+// How far the verb is toward the goal across its chosen tenses.
+function GoalStrip({ goal, reached, done }: { goal: Goal; reached: number; done: number }) {
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-baseline justify-between gap-3 text-[13px]">
+        <span className="text-fg-muted">
+          Goal: <span className="text-fg-soft">{goal.name}</span> ({goal.at}) in {goal.tenses.length} tense{goal.tenses.length === 1 ? "" : "s"}
+        </span>
+        <span className="font-mono text-xs text-fg-muted">
+          <span className="text-ok">{reached}</span>/{goal.tenses.length} there
+        </span>
+      </div>
+      <ProgressBar value={done / (goal.at * goal.tenses.length)} label={`${reached} of ${goal.tenses.length} tenses at the goal`} />
+    </div>
+  );
+}
+
+// Every chosen tense reached the goal.
+function GoalReached({ verb, goal, backHref }: { verb: string; goal: Goal; backHref: string }) {
+  const higher = VERB_LEVELS.find((l) => l.at > goal.at);
+  const tenses = goal.tenses.map((t) => t.tenseId).join(",");
+  return (
+    <section
+      aria-live="polite"
+      className="flex animate-pop flex-col items-start gap-5 rounded-[24px] border border-ok/30 bg-ok/[0.07] p-6 shadow-[0_0_60px_rgb(91_224_160/0.12)] sm:p-8"
+    >
+      <span className="font-mono text-xs tracking-[0.06em] text-ok">GOAL REACHED</span>
+      <h1 className="m-0 text-[34px] leading-[1.05] font-semibold tracking-[-0.04em] sm:text-[48px]">
+        <span lang="es">{verb}</span> is {goal.name}
+      </h1>
+      <p className="m-0 text-[15px] leading-relaxed text-fg-soft">
+        {goal.at} or more right answers in {goal.tenses.length === 1 ? goal.tenses[0].nameEn.toLowerCase() : `all ${goal.tenses.length} tenses you chose`}.
+        ¡Bien hecho!
+      </p>
+      <div className="flex w-full flex-col gap-2.5 sm:w-auto sm:flex-row">
+        {higher && (
+          <ButtonLink href={`/verbs/practice?verb=${encodeURIComponent(verb)}&tenses=${tenses}&goal=${higher.at}`} size="lg" className="w-full sm:w-auto">
+            Keep going → {higher.name} <span aria-hidden="true">→</span>
+          </ButtonLink>
+        )}
+        <ButtonLink href={backHref} variant="secondary" size="lg" className="w-full sm:w-auto">
+          Back to <span lang="es">{verb}</span>
+        </ButtonLink>
+        <ButtonLink href="/verbs" variant="secondary" size="lg" className="w-full sm:w-auto">
+          Pick another verb
+        </ButtonLink>
+      </div>
+    </section>
   );
 }

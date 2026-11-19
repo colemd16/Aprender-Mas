@@ -153,7 +153,9 @@ export async function getVerbDetail(userId: string, infinitive: string) {
   };
 }
 
-export type ChallengeOptions = { verb?: string; tense?: string; set?: VerbSet; tenses?: string[] };
+// A challenge: one verb (in one tense, chosen tenses, or all of them — practiced until each
+// reaches `goal` right answers, when there's a goal), or a mix from a set of verbs.
+export type ChallengeOptions = { verb?: string; tense?: string; set?: VerbSet; tenses?: string[]; goal?: number };
 
 // Who a card is about, in both languages. Él, ella and usted share a form (as do ellos,
 // ellas and ustedes), so each card picks one: "she used to play" reads like something
@@ -198,7 +200,8 @@ export type VerbCard = {
 // or a mix from a set of verbs in the chosen tenses. No answers are sent.
 export async function planVerbChallenge(userId: string, options: ChallengeOptions, previous?: PlannedVerbCard, count = 20): Promise<VerbCard[]> {
   const [all, progress] = await Promise.all([getCatalog(), getProgress(userId, options.verb)]);
-  const tenseFilter = options.verb ? (options.tense ? [options.tense] : null) : options.tenses?.length ? options.tenses : ["ind_present"];
+  const chosen = options.tense ? [options.tense] : options.tenses?.length ? options.tenses : null;
+  const tenseFilter = options.verb ? chosen : (chosen ?? ["ind_present"]);
   let pool: CatalogVerb[];
   if (options.verb) pool = all.get(options.verb) ? [all.get(options.verb)!] : [];
   else {
@@ -213,7 +216,9 @@ export async function planVerbChallenge(userId: string, options: ChallengeOption
       infinitive: v.infinitive,
       tenses: v.tenses
         .filter((t) => !tenseFilter || tenseFilter.includes(t.tenseId))
-        .map((t) => ({ tenseId: t.tenseId, persons: t.persons, correct: progress.map.get(v.infinitive)?.get(t.tenseId) ?? 0 })),
+        .map((t) => ({ tenseId: t.tenseId, persons: t.persons, correct: progress.map.get(v.infinitive)?.get(t.tenseId) ?? 0 }))
+        // Working toward a goal: tenses that have reached it are done.
+        .filter((t) => !options.goal || t.correct < options.goal),
     })),
     count,
     Math.random,

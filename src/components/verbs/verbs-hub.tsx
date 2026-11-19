@@ -8,6 +8,7 @@ import { ButtonLink } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
 import { Dock } from "@/components/ui/dock";
 import { ProgressRing } from "@/components/ui/progress-ring";
+import { VERB_LEVELS } from "@/domain/verbs/mastery";
 import { ChallengePicker, SETS, useChallengeChoice } from "./challenge-picker";
 import { levelTone } from "./levels";
 
@@ -18,8 +19,9 @@ const fold = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCas
 
 // The verb challenge's hub: pick a set of verbs and the tenses to drill, then start —
 // or browse the verbs and open one to work through all of its tenses.
-export function VerbsHub({ verbs, taught }: { verbs: VerbListItem[]; taught: TenseId[] }) {
-  const { set, tenses, setSet, toggleTense, href } = useChallengeChoice();
+export function VerbsHub({ verbs, taught, initialVerb }: { verbs: VerbListItem[]; taught: TenseId[]; initialVerb?: string }) {
+  const choice = useChallengeChoice(initialVerb ? { mode: "verb", verb: initialVerb } : undefined);
+  const { mode, set, verb, goal, href } = choice;
   const [query, setQuery] = useState("");
   const [shown, setShown] = useState(PAGE);
 
@@ -30,20 +32,40 @@ export function VerbsHub({ verbs, taught }: { verbs: VerbListItem[]; taught: Ten
   );
   const setCounts = useMemo(() => Object.fromEntries(SETS.map((s) => [s.id, verbs.filter((v) => inSet(v, s.id)).length])) as Record<VerbSet, number>, [verbs]);
 
-  const start = pool.length ? (
-    <ButtonLink href={href} size="lg" className="w-full sm:w-auto">
-      Start challenge · {pool.length} verb{pool.length === 1 ? "" : "s"} <span aria-hidden="true">→</span>
-    </ButtonLink>
-  ) : (
-    <span className="block rounded-2xl bg-night/80 px-4 py-3 text-center text-sm text-fg-muted sm:text-left">
-      No verbs in progress yet — start with the most common.
-    </span>
-  );
+  const goalName = VERB_LEVELS.find((l) => l.at === goal)?.name;
+  const startLabel =
+    mode === "verb" ? (
+      <>
+        Practice{" "}
+        <span lang="es" className="min-w-0 truncate">
+          {verb}
+        </span>{" "}
+        → {goalName}
+      </>
+    ) : (
+      <>
+        Start challenge · {pool.length} verb{pool.length === 1 ? "" : "s"}
+      </>
+    );
+  const start =
+    href && (mode === "verb" || pool.length) ? (
+      <ButtonLink href={href} size="lg" className="w-full sm:w-auto">
+        {startLabel} <span aria-hidden="true">→</span>
+      </ButtonLink>
+    ) : (
+      <span className="block rounded-2xl bg-night/80 px-4 py-3 text-center text-sm text-fg-muted sm:text-left">
+        {mode === "verb" ? "Pick the verb you want to master." : "No verbs in progress yet — start with the most common."}
+      </span>
+    );
 
   return (
     <>
-      <section aria-label="Start a challenge" className="glass-subtle flex animate-rise flex-col gap-5 rounded-[22px] p-4 [animation-delay:80ms] sm:p-6">
-        <ChallengePicker set={set} tenses={tenses} onSet={setSet} onToggle={toggleTense} taught={taught} setCounts={setCounts} />
+      <section
+        id="setup"
+        aria-label="Start a challenge"
+        className="scroll-mt-24 glass-subtle flex animate-rise flex-col gap-5 rounded-[22px] p-4 [animation-delay:80ms] sm:p-6"
+      >
+        <ChallengePicker choice={choice} taught={taught} setCounts={setCounts} verbs={verbs} />
         <div className="hidden sm:block">{start}</div>
       </section>
 
