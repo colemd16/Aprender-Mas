@@ -34,9 +34,13 @@ export function masteryShare(tenseCounts: number[]) {
   return tenseCounts.reduce((n, c) => n + Math.min(c, MASTERED), 0) / (MASTERED * tenseCounts.length);
 }
 
-export type TenseOption = { tenseId: string; persons: Person[]; correct: number };
+// `impersonal`: the tense also has a card with no person ("there is" → hay), dealt as
+// often as any one person. Such cards are planned as the 3rd-person singular.
+export type TenseOption = { tenseId: string; persons: Person[]; correct: number; impersonal?: boolean };
 export type VerbOption = { infinitive: string; tenses: TenseOption[] };
-export type PlannedVerbCard = { infinitive: string; tenseId: string; person: Person };
+export type PlannedVerbCard = { infinitive: string; tenseId: string; person: Person; impersonal?: boolean };
+
+const slots = (t: TenseOption) => t.persons.length + (t.impersonal ? 1 : 0);
 
 type Rng = () => number;
 
@@ -56,7 +60,7 @@ function pickWeighted<T>(items: T[], weight: (item: T) => number, rng: Rng): T {
 // rather than hammering the single lowest; the same card never comes twice in a row.
 export function planVerbCards(pool: VerbOption[], count: number, rng: Rng = Math.random, previous?: PlannedVerbCard): PlannedVerbCard[] {
   const verbs = pool
-    .map((v) => ({ infinitive: v.infinitive, tenses: v.tenses.filter((t) => t.persons.length).map((t) => ({ ...t })) }))
+    .map((v) => ({ infinitive: v.infinitive, tenses: v.tenses.filter((t) => slots(t)).map((t) => ({ ...t })) }))
     .filter((v) => v.tenses.length);
   const cards: PlannedVerbCard[] = [];
   if (!verbs.length) return cards;
@@ -67,9 +71,17 @@ export function planVerbCards(pool: VerbOption[], count: number, rng: Rng = Math
       const verb = verbs[Math.floor(rng() * verbs.length)];
       // Still to do in a tense, squared: a tense at 0 comes up far more than one at 40.
       const tense = pickWeighted(verb.tenses, (t) => (Math.max(0, MASTERED - t.correct) + 1) ** 2, rng);
-      const person = tense.persons[Math.floor(rng() * tense.persons.length)];
-      card = { infinitive: verb.infinitive, tenseId: tense.tenseId, person };
-      const repeat = last && last.infinitive === card.infinitive && last.tenseId === card.tenseId && last.person === card.person;
+      const slot = Math.floor(rng() * slots(tense));
+      card =
+        slot < tense.persons.length
+          ? { infinitive: verb.infinitive, tenseId: tense.tenseId, person: tense.persons[slot] }
+          : { infinitive: verb.infinitive, tenseId: tense.tenseId, person: "3s", impersonal: true };
+      const repeat =
+        last &&
+        last.infinitive === card.infinitive &&
+        last.tenseId === card.tenseId &&
+        last.person === card.person &&
+        !!last.impersonal === !!card.impersonal;
       if (!repeat) {
         tense.correct++;
         break;

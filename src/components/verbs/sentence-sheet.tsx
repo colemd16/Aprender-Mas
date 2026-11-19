@@ -30,7 +30,7 @@ export function SentenceSheet({ card, form, open, onClose }: { card: VerbCard; f
   const [checking, startChecking] = useTransition();
   const [fetchingExample, startExample] = useTransition();
   const fieldRef = useRef<HTMLTextAreaElement>(null);
-  const ref = { infinitive: card.infinitive, tenseId: card.tenseId, person: card.person };
+  const ref = { infinitive: card.infinitive, tenseId: card.tenseId, person: card.person, impersonal: card.impersonal };
 
   // The box grows with the sentence. It can't be measured while the sheet is still closed
   // (hidden, so it reads as 0 tall), so it's sized again once the sheet is showing.

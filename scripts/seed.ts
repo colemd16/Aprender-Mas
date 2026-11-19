@@ -6,7 +6,7 @@ config({ path: ".env.local", quiet: true });
 
 import { readFileSync } from "node:fs";
 import { parse } from "csv-parse/sync";
-import { getTableColumns, sql, type SQL } from "drizzle-orm";
+import { and, eq, getTableColumns, sql, type SQL } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
 import { CONCEPTS } from "../src/content/concepts";
 import { LEVELS } from "../src/content/curriculum";
@@ -15,6 +15,7 @@ import { JEHLE_PERSON_COLUMNS, PERSONS } from "../src/content/persons";
 import { SUPPLEMENTAL_VERBS } from "../src/content/supplemental-verbs";
 import { TENSES, type TenseId } from "../src/content/tenses";
 import { VERB_FREQUENCY } from "../src/content/verb-frequency";
+import { VERB_USAGE } from "../src/content/verb-usage";
 import { buildVerbForms, type SourceVerb } from "../src/domain/conjugation/forms";
 import { buildCurriculum } from "../src/domain/curriculum/skills";
 
@@ -112,6 +113,22 @@ async function main() {
     "verbs",
   );
   await upsert(s.verbForms, verbForms, ["infinitive", "tenseId", "person"], "verb forms");
+  // Upserts never remove anything, so forms a verb's usage rules drop (voy a haber, yo he
+  // habido) are deleted here.
+  for (const infinitive of Object.keys(VERB_USAGE)) {
+    const keep = new Set(verbForms.filter((f) => f.infinitive === infinitive).map((f) => `${f.tenseId}:${f.person}`));
+    const existing = await db
+      .select({ tenseId: s.verbForms.tenseId, person: s.verbForms.person })
+      .from(s.verbForms)
+      .where(eq(s.verbForms.infinitive, infinitive));
+    const stale = existing.filter((f) => !keep.has(`${f.tenseId}:${f.person}`));
+    for (const f of stale) {
+      await db
+        .delete(s.verbForms)
+        .where(and(eq(s.verbForms.infinitive, infinitive), eq(s.verbForms.tenseId, f.tenseId), eq(s.verbForms.person, f.person)));
+    }
+    if (stale.length) console.log(`${"  removed".padEnd(14)} ${stale.length} forms of ${infinitive}`);
+  }
   await upsert(s.concepts, CONCEPTS.map(({ id, title, summary, explanation }) => ({ id, title, summary, explanation })), ["id"], "concepts");
   await upsert(s.errorTypes, ERROR_TYPES.map((e) => ({ ...e, conceptId: e.conceptId ?? null })), ["id"], "error types");
   await upsert(s.levels, LEVELS.map((l) => ({ id: l.number, title: l.title, summary: l.summary })), ["id"], "levels");

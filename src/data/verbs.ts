@@ -12,6 +12,15 @@ import { englishMeaning, firstSense, verbEnglish, type VerbEnglish } from "@/dom
 import type { AccentMode, GradeResult } from "@/domain/grading/types";
 import type { SentenceTarget } from "@/domain/verbs/sentence-check";
 import { levelFor, masteryShare, planVerbCards, verbLevel, type PlannedVerbCard, type VerbLevel } from "@/domain/verbs/mastery";
+import {
+  auxiliaryFramesFor,
+  auxiliaryMeaning,
+  gradeImpersonal,
+  impersonalFor,
+  isImpersonalOnly,
+  specialCue,
+  tenseMeaning,
+} from "@/domain/verbs/usage";
 
 // Reads and writes for the verb challenge. `userId` must come from getCurrentUser(): this
 // connection bypasses RLS, so these filters are the protection.
@@ -133,7 +142,7 @@ export async function getVerbDetail(userId: string, infinitive: string) {
     return {
       tenseId: t.tenseId,
       // What the tense means with this verb, said for yo (tú for commands, which have no yo).
-      meaning: englishMeaning(verb.parts, t.tenseId, t.persons.includes("1s") ? "1s" : "2s"),
+      meaning: tenseMeaning(verb.infinitive, verb.parts, t.tenseId, t.persons.includes("1s") ? "1s" : "2s"),
       nameEn: def.nameEn,
       nameEs: def.nameEs,
       mood: def.mood,
@@ -191,10 +200,15 @@ export type VerbCard = {
   tenseName: string;
   tenseNameEs: string;
   person: Person;
-  personLabel: string; // the subject this card picked: "ella", "usted"
+  impersonal: boolean; // no subject: "there is" → hay (planned as the 3rd-person singular)
+  personLabel: string; // the subject this card picked: "ella", "usted" ("" with no subject)
   meaning: string; // what the form means, for that subject: "(if) she spoke"
+  frame: string | null; // the card's own cue sentence, for verbs that need one (haber)
   correct: number; // right answers so far for this verb in this tense
 };
+
+// Which card a request is about. `impersonal` picks the no-subject card of that tense.
+export type VerbCardRef = { infinitive: string; tenseId: string; person: Person; impersonal?: boolean };
 
 // The next cards of a challenge: one verb (one tense, or all its tenses, weakest first),
 // or a mix from a set of verbs in the chosen tenses. No answers are sent.
@@ -216,7 +230,13 @@ export async function planVerbChallenge(userId: string, options: ChallengeOption
       infinitive: v.infinitive,
       tenses: v.tenses
         .filter((t) => !tenseFilter || tenseFilter.includes(t.tenseId))
-        .map((t) => ({ tenseId: t.tenseId, persons: t.persons, correct: progress.map.get(v.infinitive)?.get(t.tenseId) ?? 0 }))
+        .map((t) => ({
+          tenseId: t.tenseId,
+          // Tenses with only a no-subject use (hubo, va a haber) deal only that card.
+          persons: isImpersonalOnly(v.infinitive, t.tenseId) ? [] : t.persons,
+          impersonal: !!impersonalFor(v.infinitive, t.tenseId),
+          correct: progress.map.get(v.infinitive)?.get(t.tenseId) ?? 0,
+        }))
         // Working toward a goal: tenses that have reached it are done.
         .filter((t) => !options.goal || t.correct < options.goal),
     })),
@@ -227,6 +247,8 @@ export async function planVerbChallenge(userId: string, options: ChallengeOption
   return plan.map((c, i) => {
     const def = TENSE.get(c.tenseId)!;
     const subject = subjectFor(c.person, def.mood);
+    const impersonal = !!c.impersonal;
+    const special = specialCue(c.infinitive, c.tenseId, c.person, impersonal, subject);
     return {
       key: `${Date.now().toString(36)}-${i}`,
       infinitive: c.infinitive,
@@ -235,8 +257,10 @@ export async function planVerbChallenge(userId: string, options: ChallengeOption
       tenseName: def.nameEn,
       tenseNameEs: def.nameEs,
       person: c.person,
-      personLabel: subject.es,
-      meaning: englishMeaning(all.get(c.infinitive)!.parts, c.tenseId, c.person, subject.en),
+      impersonal,
+      personLabel: impersonal ? "" : subject.es,
+      meaning: special?.meaning ?? englishMeaning(all.get(c.infinitive)!.parts, c.tenseId, c.person, subject.en),
+      frame: special?.frame ?? null,
       correct: progress.map.get(c.infinitive)?.get(c.tenseId) ?? 0,
     };
   });
@@ -244,18 +268,10 @@ export async function planVerbChallenge(userId: string, options: ChallengeOption
 
 export type VerbGrade = { result: GradeResult; correct: number; tenseLevelUp: VerbLevel | null; verbLevelUp: VerbLevel | null };
 
-// Grades one answer and counts it. A right answer (or one only missing an accent, unless
-// accents are strict) adds one to the verb's count in that tense.
-export async function gradeVerbAnswer(
-  userId: string,
-  card: { infinitive: string; tenseId: string; person: Person },
-  answer: string,
-  accentMode: AccentMode,
-): Promise<VerbGrade | null> {
-  const verb = (await getCatalog()).get(card.infinitive);
-  if (!verb?.tenses.some((t) => t.tenseId === card.tenseId && t.persons.includes(card.person))) return null;
+type FormRow = typeof verbForms.$inferSelect;
 
-  const forms = await db.select().from(verbForms).where(eq(verbForms.infinitive, card.infinitive));
+// An ordinary card: the form for its person, checked against every form of the verb.
+function gradePersonal(card: VerbCardRef, forms: FormRow[], known: FormExercise["verbForms"], answer: string, accentMode: AccentMode) {
   const expected = forms.find((f) => f.tenseId === card.tenseId && f.person === card.person);
   if (!expected) return null;
   const exercise: FormExercise = {
@@ -268,9 +284,25 @@ export async function gradeVerbAnswer(
       alternates: expected.alternates,
       isIrregular: expected.isIrregular,
     },
-    verbForms: forms.map((f) => ({ tenseId: f.tenseId as TenseId, person: f.person, form: f.form, alternates: f.alternates })),
+    verbForms: known,
   };
-  const result = gradeForm(exercise, answer, accentMode);
+  return gradeForm(exercise, answer, accentMode);
+}
+
+// Grades one answer and counts it. A right answer (or one only missing an accent, unless
+// accents are strict) adds one to the verb's count in that tense.
+export async function gradeVerbAnswer(userId: string, card: VerbCardRef, answer: string, accentMode: AccentMode): Promise<VerbGrade | null> {
+  const verb = (await getCatalog()).get(card.infinitive);
+  const tense = verb?.tenses.find((t) => t.tenseId === card.tenseId);
+  if (!verb || !tense) return null;
+  if (card.impersonal ? !impersonalFor(card.infinitive, card.tenseId) : !tense.persons.includes(card.person)) return null;
+
+  const forms = await db.select().from(verbForms).where(eq(verbForms.infinitive, card.infinitive));
+  const known = forms.map((f) => ({ tenseId: f.tenseId as TenseId, person: f.person, form: f.form, alternates: f.alternates }));
+  const result = card.impersonal
+    ? gradeImpersonal(card.infinitive, card.tenseId as TenseId, answer, known, accentMode)
+    : gradePersonal(card, forms, known, answer, accentMode);
+  if (!result) return null;
   const right = result.verdict !== "incorrect" ? 1 : 0;
 
   const before = (await getProgress(userId, card.infinitive)).map.get(card.infinitive);
@@ -315,23 +347,38 @@ export async function getTaughtTenses(userId: string): Promise<TenseId[]> {
 }
 
 // Everything the sentence check needs about a card's form: the form itself and its labels.
-export async function getSentenceTarget(card: { infinitive: string; tenseId: string; person: Person }): Promise<SentenceTarget | null> {
+export async function getSentenceTarget(card: VerbCardRef): Promise<SentenceTarget | null> {
   const verb = (await getCatalog()).get(card.infinitive);
   const def = TENSE.get(card.tenseId);
   if (!verb || !def) return null;
+  const english = firstSense(verb.english) ? `to ${firstSense(verb.english)}` : verb.english;
+  if (card.impersonal) {
+    const impersonal = impersonalFor(card.infinitive, card.tenseId);
+    if (!impersonal) return null;
+    return {
+      infinitive: verb.infinitive,
+      english: "there to be (impersonal, no subject)",
+      form: impersonal.form,
+      alternates: [],
+      tenseName: def.nameEn.toLowerCase(),
+      personLabel: "no subject (impersonal)",
+      meaning: impersonal.english,
+    };
+  }
   const [row] = await db
     .select({ form: verbForms.form, alternates: verbForms.alternates })
     .from(verbForms)
     .where(and(eq(verbForms.infinitive, card.infinitive), eq(verbForms.tenseId, card.tenseId), eq(verbForms.person, card.person)));
   if (!row) return null;
   const labels = def.mood === "imperative" ? IMPERATIVE_PERSON_LABELS : PERSON_LABELS;
+  const helper = auxiliaryFramesFor(card.infinitive, card.tenseId) && auxiliaryMeaning(card.tenseId, card.person, "+ participle");
   return {
     infinitive: verb.infinitive,
-    english: firstSense(verb.english) ? `to ${firstSense(verb.english)}` : verb.english,
+    english: helper ? `${english} (helper verb, before a participle)` : english,
     form: row.form,
     alternates: row.alternates,
     tenseName: def.nameEn.toLowerCase(),
     personLabel: labels[card.person],
-    meaning: englishMeaning(verb.parts, card.tenseId, card.person),
+    meaning: helper || englishMeaning(verb.parts, card.tenseId, card.person),
   };
 }

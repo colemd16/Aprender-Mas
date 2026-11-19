@@ -1,5 +1,6 @@
 import { PERSONS, REFLEXIVE_PRONOUNS, type Person } from "@/content/persons";
 import { TENSES, type TenseId } from "@/content/tenses";
+import { VERB_USAGE } from "@/content/verb-usage";
 import { regularForm, regularGerund, regularParticiple, splitInfinitive } from "./regular";
 
 export type VerbFormRow = {
@@ -135,5 +136,8 @@ export function buildVerbForms(verb: SourceVerb, auxiliaries: { ir: SourceVerb; 
       ...periphrasticForms(verb, auxiliaries.estar, "ind_imperfect", "per_progressive_imperfect"),
     );
   }
-  return rows;
+  // Tenses a verb only has without a subject keep just that form: hubo, va a haber, never
+  // hubimos or voy a haber.
+  const impersonalOnly = new Set<string>(VERB_USAGE[verb.infinitive]?.impersonalOnly ?? []);
+  return impersonalOnly.size ? rows.filter((r) => !impersonalOnly.has(r.tenseId) || r.person === "3s") : rows;
 }

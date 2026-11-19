@@ -30,7 +30,9 @@ const REFILL_AT = 5; // fetch more cards when this few are left
 const countKey = (c: { infinitive: string; tenseId: string }) => `${c.infinitive}|${c.tenseId}`;
 
 // A cue that calls for the card's tense, chosen steadily per card: "Si tú ___, todo sería distinto".
+// Some verbs' cards bring their own (haber: "Tú ya ___ comido").
 function frameFor(card: VerbCard) {
+  if (card.frame) return card.frame;
   const frames = TENSE_GUIDES[card.tenseId]?.frames ?? [];
   if (!frames.length) return null;
   const hash = [...card.key].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) >>> 0, 7);
@@ -127,7 +129,7 @@ export function VerbChallenge({
     if (fetching.current || queue.length - index > REFILL_AT) return;
     fetching.current = true;
     const last = queue[queue.length - 1];
-    moreVerbCards(options, last && { infinitive: last.infinitive, tenseId: last.tenseId, person: last.person })
+    moreVerbCards(options, last && { infinitive: last.infinitive, tenseId: last.tenseId, person: last.person, impersonal: last.impersonal })
       .then((more) => {
         setCounts((m) => {
           const copy = new Map(m);
@@ -163,7 +165,7 @@ export function VerbChallenge({
     setPhase("checking");
     setError(null);
     startTransition(async () => {
-      const res = await checkVerbAnswer({ infinitive: card.infinitive, tenseId: card.tenseId, person: card.person }, input).catch(() => null);
+      const res = await checkVerbAnswer({ infinitive: card.infinitive, tenseId: card.tenseId, person: card.person, impersonal: card.impersonal }, input).catch(() => null);
       if (!res || !res.ok) {
         setError(res?.message ?? "Couldn't check that — try again.");
         setPhase("answering");
@@ -339,9 +341,12 @@ export function VerbChallenge({
                   <span className="text-[14px] text-fg-muted sm:text-base">{card.english}</span>
                 </span>
                 <span className="flex flex-wrap gap-2">
-                  <Pill className="py-1">
-                    <span lang="es">{card.personLabel}</span>
-                  </Pill>
+                  {/* No-subject cards (hay, hubo) have no one to pick. */}
+                  {card.personLabel && (
+                    <Pill className="py-1">
+                      <span lang="es">{card.personLabel}</span>
+                    </Pill>
+                  )}
                   <TenseInfo
                     tenseIds={[card.tenseId]}
                     title="When it's used"
@@ -367,7 +372,7 @@ export function VerbChallenge({
                 }}
               >
                 <label htmlFor="verb-answer" className="sr-only">
-                  {card.infinitive}, {card.tenseName}, {card.personLabel}
+                  {card.infinitive}, {card.tenseName}, {card.personLabel || "no subject"}
                 </label>
                 <input
                   id="verb-answer"

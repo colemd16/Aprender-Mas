@@ -1,9 +1,9 @@
 "use server";
 
 import { ERROR_TYPES } from "@/content/error-types";
-import { PERSONS, type Person } from "@/content/persons";
+import { PERSONS } from "@/content/persons";
 import { getAccentMode } from "@/data/practice";
-import { getSentenceTarget, gradeVerbAnswer, planVerbChallenge, VERB_SETS, type ChallengeOptions, type VerbCard } from "@/data/verbs";
+import { getSentenceTarget, gradeVerbAnswer, planVerbChallenge, VERB_SETS, type ChallengeOptions, type VerbCard, type VerbCardRef } from "@/data/verbs";
 import { diffAnswer, type DiffOp } from "@/domain/grading/diff";
 import type { Verdict } from "@/domain/grading/types";
 import { VERB_LEVELS } from "@/domain/verbs/mastery";
@@ -24,9 +24,12 @@ function cleanOptions(o: ChallengeOptions): ChallengeOptions {
   };
 }
 
-export async function moreVerbCards(options: ChallengeOptions, previous?: { infinitive: string; tenseId: string; person: Person }): Promise<VerbCard[]> {
+// Only the fields a card is named by.
+const cleanCard = (c: VerbCardRef): VerbCardRef => ({ infinitive: c.infinitive, tenseId: c.tenseId, person: c.person, impersonal: c.impersonal === true });
+
+export async function moreVerbCards(options: ChallengeOptions, previous?: VerbCardRef): Promise<VerbCard[]> {
   const user = await getCurrentUser();
-  return planVerbChallenge(user.id, cleanOptions(options), previous);
+  return planVerbChallenge(user.id, cleanOptions(options), previous && cleanCard(previous));
 }
 
 export type VerbFeedback =
@@ -43,10 +46,10 @@ export type VerbFeedback =
     }
   | { ok: false; message: string };
 
-export async function checkVerbAnswer(card: { infinitive: string; tenseId: string; person: Person }, answer: string): Promise<VerbFeedback> {
+export async function checkVerbAnswer(card: VerbCardRef, answer: string): Promise<VerbFeedback> {
   const user = await getCurrentUser();
   if (!PERSONS.includes(card.person) || !answer.trim()) return { ok: false, message: "Type the form first." };
-  const graded = await gradeVerbAnswer(user.id, card, answer.slice(0, 100), await getAccentMode(user.id));
+  const graded = await gradeVerbAnswer(user.id, cleanCard(card), answer.slice(0, 100), await getAccentMode(user.id));
   if (!graded) return { ok: false, message: "That card isn't available any more." };
   const { result } = graded;
   const error = result.errors[0];
@@ -63,7 +66,6 @@ export async function checkVerbAnswer(card: { infinitive: string; tenseId: strin
   };
 }
 
-type CardRef = { infinitive: string; tenseId: string; person: Person };
 
 export type SentenceFeedback =
   | ({ ok: true; sentence: string; diff: DiffOp[] } & SentenceCheck)
@@ -72,11 +74,11 @@ export type SentenceFeedback =
 
 // "Use it in a sentence": a friendly check of the learner's own sentence. Not scored or
 // saved. Unless `anyway`, a sentence without the form is turned back before any model call.
-export async function checkVerbSentence(card: CardRef, rawSentence: string, anyway = false): Promise<SentenceFeedback> {
+export async function checkVerbSentence(card: VerbCardRef, rawSentence: string, anyway = false): Promise<SentenceFeedback> {
   await getCurrentUser();
   const sentence = rawSentence.replace(/\s+/g, " ").trim().slice(0, 300);
   if (!PERSONS.includes(card.person) || !sentence) return { ok: false, message: "Write a sentence first." };
-  const target = await getSentenceTarget(card);
+  const target = await getSentenceTarget(cleanCard(card));
   if (!target) return { ok: false, message: "That form isn't available any more." };
   if (!anyway && !findForm(sentence, target)) return { ok: false, missing: true, form: target.form };
   try {
@@ -89,12 +91,12 @@ export async function checkVerbSentence(card: CardRef, rawSentence: string, anyw
 }
 
 export async function verbExample(
-  card: CardRef,
+  card: VerbCardRef,
   avoid: string[] = [],
 ): Promise<{ ok: true; spanish: string; english: string } | { ok: false; message: string }> {
   await getCurrentUser();
   if (!PERSONS.includes(card.person)) return { ok: false, message: "That form isn't available." };
-  const target = await getSentenceTarget(card);
+  const target = await getSentenceTarget(cleanCard(card));
   if (!target) return { ok: false, message: "That form isn't available any more." };
   try {
     const previous = (Array.isArray(avoid) ? avoid : [])
